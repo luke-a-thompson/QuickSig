@@ -1,0 +1,58 @@
+[project]
+name = "quicksig"
+version = "0.1.0"
+description = "A fast signature computation library using JAX"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+dependencies = [
+    "jax[cuda12]>=0.6.0",
+    "numpy>=2.2.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-cov>=6.1.1",
+    "pre-commit>=4.2.0",
+    "mypy>=1.8.0",
+    "black>=24.2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=quicksig"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+[tool.pre-commit]
+repos = [
+  { repo = "https://github.com/pre-commit/mirrors-prettier", rev = "v2.8.3", hooks = [] }
+]
+
+[[tool.pre-commit.hooks]]
+id = "benchmark-and-test"
+name = "Benchmark and Test"
+entry = "bash run_check.sh"
+language = "system"
