@@ -1,5 +1,5 @@
 import time
-from typing import Callable, Any, TypedDict
+from typing import Callable, TypedDict
 from collections.abc import Iterable
 import jax.numpy as jnp
 import numpy as np
@@ -31,16 +31,17 @@ def is_regression(current_mean: float, current_std: float, baseline_mean: float,
 
 _DEFAULT_COMBINATIONS: list[tuple[int, int, int]] = [
     # (num_steps, channels, depth)
-    (100, 1, 2),
-    (100, 1, 3),
-    (100, 2, 3),
-    (250, 2, 3),
-    (250, 2, 4),
-    (250, 3, 3),
-    (500, 3, 3),
-    (500, 3, 4),
     (1000, 2, 3),
     (1000, 3, 4),
+    (10000, 3, 3),
+    (10000, 4, 3),
+    (10000, 4, 4),
+    (50000, 4, 4),
+    (50000, 5, 3),
+    (100000, 5, 4),
+    (100000, 5, 5),
+    (200000, 4, 3),
+    (200000, 5, 4),
 ]
 
 
@@ -74,24 +75,24 @@ def _prepare_path(num_timesteps: int, channels: int) -> jnp.ndarray:
 def _time_once(path: jnp.ndarray, depth: int) -> float:
     """Return elapsed seconds for one forward pass."""
     # Warmup run
-    _ = batch_signature_pure_jax(path, depth=depth).block_until_ready()
+    compiled = batch_signature_pure_jax.lower(path, depth=depth).compile()
 
     # Actual measurement
     start = time.perf_counter()
-    _ = batch_signature_pure_jax(path, depth=depth).block_until_ready()
+    _ = compiled(path).block_until_ready()
     return time.perf_counter() - start
 
 
 def benchmark_signature(
     combinations: Iterable[tuple[int, int, int]] = _DEFAULT_COMBINATIONS,
-    n_runs: int = 10,
-    printer: Callable[[str], None] = print,
+    n_runs: int = 100,
     check_regression: bool = False,
     update_baseline: bool = False,
 ) -> bool:
     """
     Time each (steps, channels, depth) combination over `n_runs` evaluations and
     print the mean wall-clock latency in microseconds with standard deviation.
+    Outliers (bottom and top 5%) are removed before calculating statistics.
 
     Parameters
     ----------
@@ -99,8 +100,6 @@ def benchmark_signature(
         List of (num_steps, channels, depth) combinations to benchmark
     n_runs : int
         Number of runs per combination
-    printer : Callable[[str], None]
-        Function to print results
     check_regression : bool
         If True, check for performance regressions against baseline
     update_baseline : bool
@@ -111,41 +110,55 @@ def benchmark_signature(
     bool
         True if no regressions found or not checking for regressions, False otherwise
     """
+    assert n_runs > 20, "n_runs must be greater than 20"
     baselines = _load_baselines()
     has_regression = False
 
-    header = f"{'steps':<8}{'channels':>10}{'depth':>8}{'mean μs':>12}{'std μs':>12}{'regression':>12}"
-    printer(header)
-    printer("-" * len(header))
+    header = f"{'steps':<8}{'channels':>10}{'depth':>8}{'mean μs':>12}{'std μs':>12}{'prev mean':>12}{'regression':>12}"
+    print(header)
+    print("-" * len(header))
 
     for _, (num_timesteps, channels, depth) in enumerate(combinations, 1):
         # Prepare path once for all runs
         path = _prepare_path(num_timesteps, channels)
-
-        # Ensure JIT compilation is complete
-        for _ in range(3):  # Multiple warmup runs for JIT
-            _ = batch_signature_pure_jax(path, depth=depth).block_until_ready()
+        compiled = batch_signature_pure_jax.lower(path, depth=depth).compile()
+        _ = compiled(path).block_until_ready()
 
         # Run measurements
-        times = [_time_once(path, depth) for _ in range(n_runs)]
+        times = []
+        for _ in range(n_runs):
+            start = time.perf_counter()
+            _ = compiled(path).block_until_ready()
+            times.append(time.perf_counter() - start)
+
         times_us = np.array(times) * 1e6
-        mean_us = float(np.mean(times_us))
-        std_us = float(np.std(times_us))
+
+        # Remove outliers (bottom and top 5%)
+        sorted_times = np.sort(times_us)
+        n_outliers = int(len(sorted_times) * 0.05)
+        filtered_times = sorted_times[n_outliers:-n_outliers]
+
+        mean_us = float(np.mean(filtered_times))
+        std_us = float(np.std(filtered_times))
 
         # Check for regression
         key = f"{num_timesteps}_{channels}_{depth}"
         regression_info = ""
+        prev_mean = ""
         if check_regression and key in baselines["baselines"]:
             baseline = baselines["baselines"][key]
             baseline_mean = baseline["mean_us"]
             baseline_std = baseline["std_us"]
+            prev_mean = f"{baseline_mean:>12.2f}"
             if is_regression(mean_us, std_us, baseline_mean, baseline_std):
                 regression_info = f"⚠️ {mean_us/(baseline_mean):.1f}x"
                 has_regression = True
             else:
                 regression_info = "✅"
+        else:
+            prev_mean = "N/A"
 
-        printer(f"{num_timesteps:<8}{channels:>10}{depth:>8}{mean_us:>12.2f}{std_us:>12.2f}{regression_info:>12}")
+        print(f"{num_timesteps:<8}{channels:>10}{depth:>8}{mean_us:>12.2f}{std_us:>12.2f}{prev_mean:>12}{regression_info:>12}")
 
         # Update baseline if requested
         if update_baseline:
@@ -159,7 +172,7 @@ def benchmark_signature(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run signature benchmarks")
-    parser.add_argument("--check-regression", action="store_true", help="Check for performance regressions")
+    parser.add_argument("--check-regression", action="store_true", help="Check for performance regressions", default=True)
     parser.add_argument("--update-baseline", action="store_true", help="Update baseline performance metrics")
     args = parser.parse_args()
 
