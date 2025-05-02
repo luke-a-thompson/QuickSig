@@ -1,6 +1,8 @@
 # Python-generated files
 __pycache__/
-*.py[oc]
+*.py[cod]
+*$py.class
+.coverage
 build/
 dist/
 wheels/

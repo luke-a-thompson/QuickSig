@@ -45,14 +45,3 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
-
-[tool.pre-commit]
-repos = [
-  { repo = "https://github.com/luke-a-thompson/QuickSig", rev = "v2.8.3", hooks = [] }
-]
-
-[[tool.pre-commit.hooks]]
-id = "benchmark-and-test"
-name = "Benchmark and Test"
-entry = "bash run_check.sh"
-language = "system"

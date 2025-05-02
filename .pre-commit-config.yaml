@@ -1,0 +1,9 @@
+repos:
+- repo: local
+  hooks:
+  - id: benchmark-and-test
+    name: Benchmark and Test
+    entry: bash run_check.sh
+    language: system
+    pass_filenames: false
+    always_run: true 

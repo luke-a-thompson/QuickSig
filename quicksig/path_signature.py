@@ -22,7 +22,10 @@ def batch_signature_pure_jax(path: ArrayLike, depth: int, stream: bool = False) 
 
     exp_term = batch_restricted_exp_pure_jax(path_increments[:, 0], depth=depth)
 
-    path_increment_divided = jnp.stack([path_increments / i for i in range(2, depth + 1)], axis=0)
+    if depth > 1:
+        path_increment_divided = jnp.stack([path_increments / i for i in range(2, depth + 1)], axis=0)
+    else:
+        path_increment_divided = None
 
     for depth_index in range(1, depth):
         current = stacked[0][:, :-1] + path_increment_divided[depth_index - 1, :, 1:]
