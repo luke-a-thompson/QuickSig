@@ -6,14 +6,16 @@ from functools import partial
 
 @jax.jit
 def batch_otimes_pure_jax(x: ArrayLike, y: ArrayLike) -> ArrayLike:
-    """GPU-optimized batched tensor product preserving batch dimension."""
-    xdim = x.ndim
-    ydim = y.ndim
-    for i in range(ydim - 1):
-        x = jnp.expand_dims(x, -1)
-    for i in range(xdim - 1):
-        y = jnp.expand_dims(y, 1)
-    return x * y
+    """GPU-optimized batched tensor product preserving batch dimension.
+
+    Args:
+        x: ArrayLike shape (..., n)
+        y: ArrayLike shape (..., m)
+
+    Returns:
+        ArrayLike: The batched tensor product of x and y.
+    """
+    return jnp.einsum("...i,...j->...ij", x, y, optimize=True)
 
 
 @jax.jit

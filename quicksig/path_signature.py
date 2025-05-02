@@ -18,7 +18,8 @@ def batch_signature_pure_jax(path: ArrayLike, depth: int, stream: bool = False) 
     batch_size, seq_len, n_features = path.shape
     path_increments = path[:, 1:] - path[:, :-1]
 
-    stacked = [jnp.cumsum(path_increments, axis=1)]
+    stacked = [jnp.cumsum(path_increments, axis=1)]  # Accumulates prefix path signatures
+    # E.g., stacked[0] shape: (batch_size, 4, 2), stacked[1] shape: (batch_size, 4, 4) as 2^2 =4
 
     exp_term = batch_restricted_exp_pure_jax(path_increments[:, 0], depth=depth)
 
