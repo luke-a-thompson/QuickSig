@@ -1,11 +1,10 @@
 import time
-from typing import Callable, Iterable, Any, TypedDict
+from typing import Callable, Any, TypedDict
+from collections.abc import Iterable
 import jax.numpy as jnp
 import numpy as np
 import argparse
-import ast
 import json
-import os
 from pathlib import Path
 from tests.test_helpers import generate_scalar_path
 from quicksig.path_signature import batch_signature_pure_jax
@@ -25,9 +24,9 @@ class Baselines(TypedDict):
 
 
 # Allow up to 1 standard deviation difference
-def is_regression(current_mean: np.floating[Any], current_std: np.floating[Any], baseline_mean: float, baseline_std: float) -> bool:
+def is_regression(current_mean: float, current_std: float, baseline_mean: float, baseline_std: float) -> bool:
     """Return True if current performance is significantly worse than baseline."""
-    return float(current_mean) > baseline_mean + baseline_std
+    return current_mean > baseline_mean + baseline_std
 
 
 _DEFAULT_COMBINATIONS: list[tuple[int, int, int]] = [
@@ -54,12 +53,13 @@ def _load_baselines() -> Baselines:
     """Load baseline performance metrics."""
     baseline_path = _get_baseline_path()
     if not baseline_path.exists():
-        return {"baselines": {}}
+        return Baselines(baselines={})
     with open(baseline_path) as f:
-        return json.load(f)
+        data = json.load(f)
+        return Baselines(baselines=data.get("baselines", {}))
 
 
-def _save_baselines(baselines: dict) -> None:
+def _save_baselines(baselines: Baselines) -> None:
     """Save baseline performance metrics."""
     with open(_get_baseline_path(), "w") as f:
         json.dump(baselines, f, indent=4)
@@ -129,13 +129,13 @@ def benchmark_signature(
         # Run measurements
         times = [_time_once(path, depth) for _ in range(n_runs)]
         times_us = np.array(times) * 1e6
-        mean_us = np.mean(times_us)
-        std_us = np.std(times_us)
+        mean_us = float(np.mean(times_us))
+        std_us = float(np.std(times_us))
 
         # Check for regression
         key = f"{num_timesteps}_{channels}_{depth}"
         regression_info = ""
-        if check_regression and key in baselines.get("baselines", {}):
+        if check_regression and key in baselines["baselines"]:
             baseline = baselines["baselines"][key]
             baseline_mean = baseline["mean_us"]
             baseline_std = baseline["std_us"]
@@ -149,9 +149,7 @@ def benchmark_signature(
 
         # Update baseline if requested
         if update_baseline:
-            if "baselines" not in baselines:
-                baselines["baselines"] = {}
-            baselines["baselines"][key] = {"mean_us": mean_us, "std_us": std_us}
+            baselines["baselines"][key] = BenchmarkResult(mean_us=mean_us, std_us=std_us)
 
     if update_baseline:
         _save_baselines(baselines)
