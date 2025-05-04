@@ -1,39 +1,66 @@
 import jax
 import jax.numpy as jnp
-from jax.typing import ArrayLike
 from functools import partial
 
 
-@jax.jit
-def batch_otimes_pure_jax(x: ArrayLike, y: ArrayLike) -> ArrayLike:
+def batch_otimes_pure_jax(x: jax.Array, y: jax.Array) -> jax.Array:
     """GPU-optimized batched tensor product preserving batch dimension.
 
     Args:
-        x: ArrayLike shape (..., n)
-        y: ArrayLike shape (..., m)
+        x (jax.Array): Shape (..., n)
+        y (jax.Array): Shape (..., n)
 
     Returns:
-        ArrayLike: The batched tensor product of x and y.
+        jax.Array: The batched tensor product of x and y.
     """
     return jnp.einsum("...i,...j->...ij", x, y, optimize=True)
 
 
-@jax.jit
-def batch_seq_otimes_pure_jax(x: ArrayLike, y: ArrayLike) -> ArrayLike:
-    """GPU-optimized tensor product preserving both batch and sequence dimensions."""
-    xdim = x.ndim
-    ydim = y.ndim
-    for i in range(ydim - 2):
-        x = jnp.expand_dims(x, axis=-1)
-    for i in range(xdim - 2):
-        y = jnp.expand_dims(y, axis=2)
-    return x * y
+def batch_seq_otimes_pure_jax(x: jax.Array, y: jax.Array) -> jax.Array:
+    """
+    Outer product of the trailing dimensions while preserving the
+    leading (batch, sequence) axes.
+
+    Shapes
+    -------
+    x : (B, S, *A)          # *A is any tuple of ≥1 dims
+    y : (B, S, *B_)         # *B_ is any tuple of ≥1 dims
+
+    Returns
+    --------
+    (B, S, *A, *B_)
+    """
+    # trailing ranks
+    a_rank = x.ndim - 2
+    b_rank = y.ndim - 2
+
+    # add singleton axes **once** instead of in a Python loop
+    x_bcast = jnp.reshape(x, x.shape + (1,) * b_rank)
+    y_bcast = jnp.reshape(y, y.shape[:2] + (1,) * a_rank + y.shape[2:])
+
+    return x_bcast * y_bcast
 
 
-@partial(jax.jit, static_argnames="depth")
-def batch_restricted_exp_pure_jax(input: ArrayLike, depth: int) -> list[ArrayLike]:
-    """Computes restricted exponential with full GPU parallelization."""
-    ret = [input]
-    for i in range(2, depth + 1):
-        ret.append(batch_otimes_pure_jax(ret[-1], input / i))
-    return ret
+# @partial(jax.jit, static_argnames="depth")
+def batch_restricted_exp_pure_jax(x: jax.Array, depth: int) -> tuple[jax.Array, ...]:
+    r"""
+    Return the truncated tensor-exponential terms
+    $$\frac{(\mathrm{base\_tensor})^{\otimes k}}{k!}\quad(k=1,\dots,\text{max\_order}).$$
+
+
+    Args:
+        x: ArrayLike shape (..., n)
+        depth: int. The truncation order of the restricted tensor exponential, usually denoted k in literature.
+
+    Returns:
+        A tuple of length max_order, where the k-th entry is x^{⊗(k+1)}/(k+1)!.
+
+        terms[k-1] is the k-th order term \frac{x^{\otimes k}}{k!} so has shape `(..., n, n, …, n)` with `k` copies of the last dimension.
+    """
+    terms = [x]
+    for k in range(1, depth):
+        divisor = k + 1
+        next_factor = x / divisor
+        next_power = batch_otimes_pure_jax(terms[-1], next_factor)
+        terms.append(next_power)
+    return tuple(terms)

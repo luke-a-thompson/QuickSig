@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 import time
-from quicksig.batch_ops import batch_otimes_pure_jax
+from quicksig.batch_ops import batch_otimes_pure_jax, batch_seq_otimes_pure_jax
 
 
 @jax.jit
@@ -18,10 +18,10 @@ def batch_otimes_expand(x: ArrayLike, y: ArrayLike) -> ArrayLike:
 
 
 def benchmark() -> None:
-    # Generate test data
-    batch_size = 10000  # Number of vectors in the batch
-    n = 100  # Dimension of first vector (x)
-    m = 100  # Dimension of second vector (y)
+    # Generate test data for batch tensor product
+    batch_size = 1000  # Number of vectors in the batch
+    n = 1000  # Dimension of first vector (x)
+    m = 1000  # Dimension of second vector (y)
 
     key = jax.random.PRNGKey(0)
     x = jax.random.normal(key, (batch_size, n))
@@ -43,6 +43,7 @@ def benchmark() -> None:
         _ = batch_otimes_expand(x, y)
     expand_time = time.time() - start
 
+    print("Batch tensor product results:")
     print(f"Einsum version: {einsum_time:.4f} seconds")
     print(f"Expand_dims version: {expand_time:.4f} seconds")
     print(f"Einsum is {expand_time/einsum_time:.2f}x faster")
