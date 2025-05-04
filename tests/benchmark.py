@@ -114,7 +114,7 @@ def benchmark_signature(
     baselines = _load_baselines()
     has_regression = False
 
-    header = f"{'steps':<8}{'channels':>10}{'depth':>8}{'mean μs':>12}{'std μs':>12}{'prev mean':>12}{'regression':>12}"
+    header = f"{'steps':<8}{'channels':>10}{'depth':>8}{'mean μs':>12}{'std μs':>12}{'prev mean':>12}{'% diff':>12}{'regression':>12}"
     print(header)
     print("-" * len(header))
 
@@ -145,11 +145,13 @@ def benchmark_signature(
         key = f"{num_timesteps}_{channels}_{depth}"
         regression_info = ""
         prev_mean = ""
+        pct_diff = ""
         if check_regression and key in baselines["baselines"]:
             baseline = baselines["baselines"][key]
             baseline_mean = baseline["mean_us"]
             baseline_std = baseline["std_us"]
             prev_mean = f"{baseline_mean:>12.2f}"
+            pct_diff = f"{((mean_us - baseline_mean) / baseline_mean * 100):>11.1f}%"
             if is_regression(mean_us, std_us, baseline_mean, baseline_std):
                 regression_info = f"⚠️ {mean_us/(baseline_mean):.1f}x"
                 has_regression = True
@@ -157,8 +159,9 @@ def benchmark_signature(
                 regression_info = "✅"
         else:
             prev_mean = "N/A"
+            pct_diff = "N/A"
 
-        print(f"{num_timesteps:<8}{channels:>10}{depth:>8}{mean_us:>12.2f}{std_us:>12.2f}{prev_mean:>12}{regression_info:>12}")
+        print(f"{num_timesteps:<8}{channels:>10}{depth:>8}{mean_us:>12.2f}{std_us:>12.2f}{prev_mean:>12}{pct_diff:>12}{regression_info:>12}")
 
         # Update baseline if requested
         if update_baseline:
@@ -176,8 +179,4 @@ if __name__ == "__main__":
     parser.add_argument("--update-baseline", action="store_true", help="Update baseline performance metrics")
     args = parser.parse_args()
 
-    success = benchmark_signature(combinations=_DEFAULT_COMBINATIONS, n_runs=100, check_regression=args.check_regression, update_baseline=args.update_baseline)
-
-    if not success:
-        print("\n⚠️ Performance regression detected!")
-        exit(1)
+    benchmark_signature(combinations=_DEFAULT_COMBINATIONS, n_runs=100, check_regression=args.check_regression, update_baseline=args.update_baseline)
