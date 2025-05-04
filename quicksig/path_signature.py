@@ -1,10 +1,7 @@
 import jax
 import jax.numpy as jnp
 from functools import partial
-from quicksig.batch_ops import batch_restricted_exp_pure_jax, batch_seq_otimes_pure_jax
-import lovely_jax as lj
-
-lj.monkey_patch()
+from quicksig.batch_ops import batch_restricted_exp, batch_seq_tensor_product
 
 
 @partial(jax.jit, static_argnames=["depth", "stream"])
@@ -51,7 +48,7 @@ def batch_signature_pure_jax(path: jax.Array, depth: int, stream: bool = False) 
     #   exp_term[1].shape: [batch_size, n_features, n_features]
     # For the first increment, we compute the tensor restricted exponential \frac{(\Deltax_0)^{\otimes k}}{k!}, \quad \forall k \in [1, depth]
     # Truncated tensor exponential for the first increment (timestep) of k
-    first_inc_tensor_exp_terms: tuple[jax.Array, ...] = batch_restricted_exp_pure_jax(path_increments[:, 0, :], depth=depth)
+    first_inc_tensor_exp_terms: tuple[jax.Array, ...] = batch_restricted_exp(path_increments[:, 0, :], depth=depth)
 
     # Precompute scaled path increments `\delta_{x_t}/2, \delta_{x_t}/3, \dots, \delta_{x_t}/k` for each k in [2, depth]
     # Precalculates the scaling factor for the different depths
@@ -63,13 +60,16 @@ def batch_signature_pure_jax(path: jax.Array, depth: int, stream: bool = False) 
     path_increment_divided = jnp.stack(path_increment_divided_list, axis=0)
 
     for depth_index in range(1, depth):
-        # Everything up to but not including the current increment + the current increment scaled by k
+        # Signature up to but not including the current increment + the current increment scaled by k
         current = incremental_signatures[0][:, :-1, :] + path_increment_divided[depth_index - 1, :, 1:, :]
 
         for j in range(depth_index - 1):
             # Shuffle product, notice that j increases while depth_index-j increases
-            current = incremental_signatures[j + 1][:, :-1, :] + batch_seq_otimes_pure_jax(current, path_increment_divided[depth_index - j - 2, :, 1:])
-        current = batch_seq_otimes_pure_jax(current, path_increments[:, 1:])
+            # Depth j + prefix signature + current \otimes
+            # the final current at the end of the loop is the final full k-fold shuffle product
+            # Shape: [batch_size, seq_len - 1, n_features ** (j + 1)]
+            current = incremental_signatures[j + 1][:, :-1, :] + batch_seq_tensor_product(current, path_increment_divided[depth_index - j - 2, :, 1:, :])
+        current = batch_seq_tensor_product(current, path_increments[:, 1:])
 
         # Concatenate the first increment (timestep) with the rest of the signature
         first_inc_expanded = jnp.expand_dims(first_inc_tensor_exp_terms[depth_index], axis=1)  # Shape: [batch_size, 1, n_features ** (depth_index + 1)]
@@ -81,7 +81,7 @@ def batch_signature_pure_jax(path: jax.Array, depth: int, stream: bool = False) 
     if not stream:
         return jnp.concatenate([jnp.reshape(c[:, -1], (batch_size, n_features ** (1 + idx))) for idx, c in enumerate(incremental_signatures)], axis=1)
     else:
-        return jnp.concatenate([jnp.reshape(r, (batch_size, seq_len - 1, n_features ** (1 + idx))) for idx, r in enumerate(incremental_signatures)], axis=2)
+        return jnp.concatenate(arrays=[jnp.reshape(r, (batch_size, seq_len - 1, n_features ** (1 + idx))) for idx, r in enumerate(incremental_signatures)], axis=2)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,8 @@
 import jax
 import jax.numpy as jnp
-from functools import partial
 
 
-def batch_otimes_pure_jax(x: jax.Array, y: jax.Array) -> jax.Array:
+def batch_tensor_product(x: jax.Array, y: jax.Array) -> jax.Array:
     """GPU-optimized batched tensor product preserving batch dimension.
 
     Args:
@@ -16,7 +15,7 @@ def batch_otimes_pure_jax(x: jax.Array, y: jax.Array) -> jax.Array:
     return jnp.einsum("...i,...j->...ij", x, y, optimize=True)
 
 
-def batch_seq_otimes_pure_jax(x: jax.Array, y: jax.Array) -> jax.Array:
+def batch_seq_tensor_product(x: jax.Array, y: jax.Array) -> jax.Array:
     """
     Outer product of the trailing dimensions while preserving the
     leading (batch, sequence) axes.
@@ -42,7 +41,7 @@ def batch_seq_otimes_pure_jax(x: jax.Array, y: jax.Array) -> jax.Array:
 
 
 # @partial(jax.jit, static_argnames="depth")
-def batch_restricted_exp_pure_jax(x: jax.Array, depth: int) -> tuple[jax.Array, ...]:
+def batch_restricted_exp(x: jax.Array, depth: int) -> tuple[jax.Array, ...]:
     r"""
     Return the truncated tensor-exponential terms
     $$\frac{(\mathrm{base\_tensor})^{\otimes k}}{k!}\quad(k=1,\dots,\text{max\_order}).$$
@@ -61,6 +60,6 @@ def batch_restricted_exp_pure_jax(x: jax.Array, depth: int) -> tuple[jax.Array, 
     for k in range(1, depth):
         divisor = k + 1
         next_factor = x / divisor
-        next_power = batch_otimes_pure_jax(terms[-1], next_factor)
+        next_power = batch_tensor_product(terms[-1], next_factor)
         terms.append(next_power)
     return tuple(terms)

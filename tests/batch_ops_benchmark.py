@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 import time
-from quicksig.batch_ops import batch_otimes_pure_jax, batch_seq_otimes_pure_jax
+from quicksig.batch_ops import batch_tensor_product, batch_seq_tensor_product
 
 
 @jax.jit
@@ -28,13 +28,13 @@ def benchmark() -> None:
     y = jax.random.normal(key, (batch_size, m))
 
     # Warm up JIT
-    _ = batch_otimes_pure_jax(x, y)
+    _ = batch_tensor_product(x, y)
     _ = batch_otimes_expand(x, y)
 
     # Benchmark einsum version
     start = time.time()
     for _ in range(100):
-        _ = batch_otimes_pure_jax(x, y)
+        _ = batch_tensor_product(x, y)
     einsum_time = time.time() - start
 
     # Benchmark expand_dims version
