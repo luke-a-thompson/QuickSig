@@ -44,7 +44,7 @@ def test_linear_path_exactness() -> None:
 
 def test_zero_path_vanishes() -> None:
     """
-    A constant path has zero increment, hence zero signature beyond level 0.
+    A constant path has zero increment, hence zero signature beyond level 0.
     """
     const_path = jnp.zeros((1, 50, 2), dtype=jnp.float32)
     sig = batch_signature_pure_jax(const_path, depth=4)
