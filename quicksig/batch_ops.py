@@ -60,7 +60,7 @@ def batch_restricted_exp(x: jax.Array, depth: int) -> tuple[jax.Array, ...]:
     r"""
     Return the truncated tensor-exponential terms
 
-    $$\frac{(\mathrm{base\_tensor})^{\otimes k}}{k!}\quad(k=1,\dots,\text{max\_order}).$$
+    $$\exp(x) = \sum_{k=0}^{\infty} \frac{x^{\otimes k}}{k!}$$
 
     Args:
         x: ArrayLike shape (..., n)
@@ -75,9 +75,39 @@ def batch_restricted_exp(x: jax.Array, depth: int) -> tuple[jax.Array, ...]:
     for k in range(1, depth):
         divisor = k + 1
         next_factor = x / divisor
-        next_power = batch_tensor_product(terms[-1], next_factor)
+        next_power = batch_tensor_product(terms[-1], next_factor)  # $$x^{\otimes (k+1)} / (k+1)!$$
         terms.append(next_power)
     return tuple(terms)
+
+
+def batch_cauchy_prod(x: list[jax.Array], y: list[jax.Array], depth: int, S_levels_shapes: list[jax.Array]) -> list[jax.Array]:
+    r"""
+    Computes the degree-m component of the graded tensor-concatenation product
+    or Cauchy convolution product in the truncated free tensor algebra.
+    $$
+    Z^{(m)} \;=\;\sum_{p+q=m} X^{(p)} \otimes Y^{(q)}
+    $$
+    This is the degree-m truncation of the full (Cauchy) product
+    $$
+    X \cdot Y = \sum_{p,q\ge0} X^{(p)} \otimes Y^{(q)}.
+    $$
+    """
+
+    # out[i] holds $$Z^{(i+1)}, Z = x \otimes y$$
+    out = [jnp.zeros_like(S_levels_shapes[k]) for k in range(depth)]
+    # order-1 term is zero as there is no way to split $$1 = (p+1)+(q+1)$$ with $$p,q ≥ 0$$
+    for i in range(1, depth):  # i is the index for out, e.g., out[i] is order i+1
+
+        # we want $$Z^{(i+1)} = \sum_{(j+1)+(k+1)=i+1} X^{(j+1)}⊗Y^{(k+1)}$$
+        # i.e. we want to sum over all ways to split $$i+1 = (j+1)+(k+1)$$ with $$j,k ≥ 0$$
+        acc = jnp.zeros_like(out[i])
+        for j in range(i):
+            if j < len(x) and (i - 1 - j) < len(y):  # Ensure terms exist
+                k = i - 1 - j
+                term = batch_tensor_product(x[j], y[k])
+                acc = acc + term  # $$X^{(j+1)}⊗Y^{(k+1)}$$
+        out[i] = acc
+    return out
 
 
 def batch_tensor_log(sig_flat: jax.Array, depth: int, n_features: int) -> jax.Array:
@@ -94,46 +124,16 @@ def batch_tensor_log(sig_flat: jax.Array, depth: int, n_features: int) -> jax.Ar
     # S_levels[k] = $$T^{\otimes k}, \quad k=1,\dots,\text{depth}$$
     sig_levels = [lvl.reshape((B,) + (n_features,) * (k + 1)) for k, lvl in enumerate(sig_levels)]
 
-    def tensor_mul(x: list[jax.Array], y: list[jax.Array], depth: int, S_levels_shapes: list[jax.Array]) -> list[jax.Array]:
-        # S_levels_shapes is a list of zero tensors with the correct shapes for each level, e.g. initial S_levels.
-        out = [jnp.zeros_like(S_levels_shapes[k]) for k in range(depth)]
-        # out[i] will be the (i+1)-th order component.
-        # Smallest order of X_p \otimes Y_q is 1+1=2 (if X, Y start at order 1).
-        # So out[0] (order 1 component) is zero.
-        for i in range(1, depth):  # i is the index for out, e.g., out[i] is order i+1
-            # order_out = i + 1
-            # We need sum of X_p \otimes Y_q where p+q = order_out.
-            # X[j] is order j+1. Y[k] is order k+1.
-            # (j+1) + (k+1) = i+1  => j+k = i-1.
-            # j runs from 0 to i-1. k = i-1-j.
-            acc = jnp.zeros_like(out[i])
-            for j in range(i):  # j from 0 to i-1
-                if j < len(x) and (i - 1 - j) < len(y):  # Ensure terms exist
-                    term = batch_tensor_product(x[j], y[i - 1 - j])
-                    acc = acc + term
-            out[i] = acc
-        return out
-
     result = [jnp.zeros_like(t) for t in sig_levels]
     tensor_exp_lvl = sig_levels
 
     for n in range(1, depth + 1):
         coef = (-1.0) ** (n - 1) / n  # $$c_k = (-1)^{k-1}/k$$
-        result = [r + coef * p for r, p in zip(result, tensor_exp_lvl)]  # $$L_k \leftarrow L_k + \frac{(-1)^{k-1}}{k} \cdot T^{\otimes k}$$, $$L_k$$ is accumulates for the sum
+        result = [res + coef * p for res, p in zip(result, tensor_exp_lvl)]  # $$L_k \leftarrow L_k + \frac{(-1)^{k-1}}{k} \cdot T^{\otimes k}$$, $$L_k$$ is accumulates for the sum
         if n < depth:  # $$S^{⊗(n+1)}$$
-            tensor_exp_lvl = tensor_mul(tensor_exp_lvl, sig_levels, depth, sig_levels)
+            # Math note: We must use the Cauchy product because the atomic tensor product is not defined for lists of signatures.
+            tensor_exp_lvl = batch_cauchy_prod(tensor_exp_lvl, sig_levels, depth, sig_levels)
 
     # --- flatten and concatenate ------------------------------------
     log_flat = jnp.concatenate([lvl.reshape(B, -1) for lvl in result], axis=-1)
     return log_flat
-
-
-if __name__ == "__main__":
-    from quicksig.path_signature import batch_signature_pure_jax
-
-    key = jax.random.PRNGKey(0)
-    path = jax.random.normal(key, shape=(2, 100, 4))
-    signature = batch_signature_pure_jax(path, depth=5)
-    print(signature.shape)
-    tensor_log = batch_tensor_log(signature, 5, 4)
-    print(tensor_log.shape)
