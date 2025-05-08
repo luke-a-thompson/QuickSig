@@ -6,7 +6,7 @@ from quicksig.batch_ops import batch_tensor_product, batch_seq_tensor_product
 
 
 @jax.jit
-def batch_otimes_expand(x: ArrayLike, y: ArrayLike) -> ArrayLike:
+def batch_otimes_expand(x: jax.Array, y: jax.Array) -> jax.Array:
     """GPU-optimized batched tensor product using expand_dims."""
     xdim = x.ndim
     ydim = y.ndim
