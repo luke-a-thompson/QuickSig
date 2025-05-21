@@ -1,5 +1,5 @@
 import time
-from typing import Callable, TypedDict
+from typing import TypedDict
 from collections.abc import Iterable
 import jax.numpy as jnp
 import numpy as np
@@ -7,7 +7,7 @@ import argparse
 import json
 from pathlib import Path
 from tests.test_helpers import generate_scalar_path
-from quicksig.path_signature import batch_signature_pure_jax
+from quicksig.get_signatures import get_signature
 import jax
 
 PRNG = jax.random.PRNGKey(0)
@@ -75,7 +75,7 @@ def _prepare_path(num_timesteps: int, channels: int) -> jnp.ndarray:
 def _time_once(path: jnp.ndarray, depth: int) -> float:
     """Return elapsed seconds for one forward pass."""
     # Warmup run
-    compiled = batch_signature_pure_jax.lower(path, depth=depth).compile()
+    compiled = get_signature(path, depth=depth, stream=False).compile()
 
     # Actual measurement
     start = time.perf_counter()
@@ -121,7 +121,7 @@ def benchmark_signature(
     for _, (num_timesteps, channels, depth) in enumerate(combinations, 1):
         # Prepare path once for all runs
         path = _prepare_path(num_timesteps, channels)
-        compiled = batch_signature_pure_jax.lower(path, depth=depth).compile()
+        compiled = batch_signature.lower(path, depth=depth).compile()
         _ = compiled(path).block_until_ready()
 
         # Run measurements

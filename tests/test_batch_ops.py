@@ -29,7 +29,7 @@ def test_batch_log_inverse_of_exp() -> None:
     assert exp_concatenated.shape == (B, expected_total_dim), f"Shape mismatch for exp_concatenated: expected {(B, expected_total_dim)}, got {exp_concatenated.shape}"
 
     # 3. Compute the tensor logarithm of the exponentiated terms
-    log_of_exp_concatenated: jax.Array = batch_tensor_log(exp_concatenated, depth, n_features)
+    log_of_exp_concatenated: jax.Array = batch_tensor_log(exp_terms_flat_list, n_features)
 
     assert log_of_exp_concatenated.shape == (
         B,
@@ -322,7 +322,7 @@ def test_batch_tensor_log_specific_depths(depth: int, n_features: int) -> None:
 
     if depth == 1:
         # For depth 1, sig_flat is just X. log(X) should be X.
-        sig_flat_input = initial_x.reshape(B, -1)
+        sig_flat_input_list = [initial_x.reshape(B, -1)]
         expected_log_flat = initial_x.reshape(B, -1)
     else:
         # For depth > 1, we construct a signature S = exp(L) where L has only L1 = X and Lk=0 for k>1.
@@ -333,7 +333,6 @@ def test_batch_tensor_log_specific_depths(depth: int, n_features: int) -> None:
 
         # Concatenate these terms to form sig_flat_input for batch_tensor_log
         sig_flat_input_list: list[jax.Array] = [term.reshape(B, -1) for term in exp_terms_of_x]
-        sig_flat_input = jnp.concatenate(sig_flat_input_list, axis=-1)
 
         # The expected log output should be (X, 0, 0, ..., 0) when flattened.
         # The first term (L1) is X, subsequent terms (L2, L3, ...) should be close to zero.
@@ -345,11 +344,10 @@ def test_batch_tensor_log_specific_depths(depth: int, n_features: int) -> None:
         expected_log_flat = jnp.concatenate(expected_log_terms_flat_list, axis=-1)
 
     # Compute the tensor logarithm
-    log_output_flat = batch_tensor_log(sig_flat_input, depth, n_features)
+    log_output_flat = batch_tensor_log(sig_flat_input_list, n_features)
 
     # Verify shapes
     total_dim_expected = sum(n_features**k for k in range(1, depth + 1))
-    assert sig_flat_input.shape == (B, total_dim_expected), f"Input sig_flat shape error"
     assert log_output_flat.shape == (B, total_dim_expected), f"Output log_flat shape error"
     assert expected_log_flat.shape == (B, total_dim_expected), f"Expected log_flat shape error"
 
