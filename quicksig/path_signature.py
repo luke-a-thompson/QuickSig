@@ -5,7 +5,7 @@ from quicksig.batch_ops import batch_restricted_exp, batch_seq_tensor_product
 
 
 @partial(jax.jit, static_argnames=["depth", "stream"])
-def batch_signature_pure_jax(path: jax.Array, depth: int, stream: bool = False) -> jax.Array:
+def batch_signature(path: jax.Array, depth: int, stream: bool = False) -> list[jax.Array]:
     r"""Computes the truncated path signature
     $$\operatorname{Sig}_{0,T}(X)=\bigl(S^{(1)}_{0,T},\,S^{(2)}_{0,T},\ldots,S^{(m)}_{0,T}\bigr),\qquad m=\text{depth}.$$
     The constant term $$S^{(0)}_{0,T}=1$$ is omitted.
@@ -42,9 +42,9 @@ def batch_signature_pure_jax(path: jax.Array, depth: int, stream: bool = False) 
     incremental_signatures = [depth_1_stream]
 
     if depth == 1:
-        return incremental_signatures[0] if stream else incremental_signatures[0][:, -1, :]
+        return list(incremental_signatures[0] if stream else incremental_signatures[0][:, -1, :])
 
-    # Precompute $$S^k_{0,1} = (\Delta X_1)^{\otimes k} / k!$$ for $$k = 1, \ldots, \text{depth}$$, len = k
+    # Precompute $$S^k_{0,1} = (\Delta X_1)^{\otimes k}$$ for $$k = 1, \ldots, \text{depth}$$, len = k
     first_inc_tensor_exp_terms: tuple[jax.Array, ...] = batch_restricted_exp(path_increments[:, 0, :], depth=depth)
 
     # Precompute scaled increments: $$\Delta X_t / k$$ for $$k = 2, \ldots, \text{depth}$$
@@ -53,7 +53,7 @@ def batch_signature_pure_jax(path: jax.Array, depth: int, stream: bool = False) 
 
     for k in range(1, depth):
         # Initialize accumulator:
-        # $$\text{Aux}^{(1)}_t = S^{k-1}_{0,t-1} + (\Delta X_t)^{\otimes k} / k!, \quad \forall t = 1, \ldots, N - 1$$
+        # $$\text{Aux}^{(1)}_t = S^{k-1}_{0,t-1} + (\Delta X_t) / k!, \quad \forall t = 1, \ldots, N - 1$$
         # Due to numpy indexing, :-1 and 1: are just numbers being added, the list-like indexing means vectorised addition over all seq_len - not actually adding 2 slices
         sig_accm = incremental_signatures[0][:, :-1, :] + path_increment_divided[k - 1, :, 1:, :]
 
@@ -77,13 +77,8 @@ def batch_signature_pure_jax(path: jax.Array, depth: int, stream: bool = False) 
         incremental_signatures.append(jnp.cumsum(sig_accm, axis=1))
 
     if not stream:
-        return jnp.concatenate([jnp.reshape(c[:, -1], (batch_size, n_features ** (1 + idx))) for idx, c in enumerate(incremental_signatures)], axis=1)
+        return [jnp.reshape(c[:, -1], (batch_size, n_features ** (1 + idx))) for idx, c in enumerate(incremental_signatures)]
+        # return jnp.concatenate([jnp.reshape(c[:, -1], (batch_size, n_features ** (1 + idx))) for idx, c in enumerate(incremental_signatures)], axis=1)
     else:
-        return jnp.concatenate(arrays=[jnp.reshape(r, (batch_size, seq_len - 1, n_features ** (1 + idx))) for idx, r in enumerate(incremental_signatures)], axis=2)
-
-
-if __name__ == "__main__":
-    key = jax.random.PRNGKey(0)
-    path = jax.random.normal(key, shape=(2, 100, 50))  # Stream
-    signature = batch_signature_pure_jax(path, depth=5)
-    print(signature.shape)
+        return [jnp.reshape(r, (batch_size, seq_len - 1, n_features ** (1 + idx))) for idx, r in enumerate(incremental_signatures)]
+        # return jnp.concatenate(arrays=[jnp.reshape(r, (batch_size, seq_len - 1, n_features ** (1 + idx))) for idx, r in enumerate(incremental_signatures)], axis=2)
