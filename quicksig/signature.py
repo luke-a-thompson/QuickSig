@@ -1,8 +1,6 @@
 import jax
 import jax.numpy as jnp
-from functools import partial
 from quicksig.batch_ops import batch_restricted_exp, batch_seq_tensor_product
-from typing import Union
 
 
 def flatten_signature(incremental_signatures: list[jax.Array], batch_size: int, n_features: int, stream: bool = False) -> jax.Array:
