@@ -1,12 +1,11 @@
 import jax
 from quicksig.batch_ops import batch_tensor_log
 from quicksig.path_signature import batch_signature_pure_jax
-from functools import partial
 from enum import Enum
 
 
 class LogSignatureType(Enum):
-    EXPANDED = "expanded"  $$ \in T(V) $$
+    EXPANDED = "expanded"  # $$ \in T(V) $$
     LYNDON = "lyndon"
 
 

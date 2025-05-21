@@ -1,8 +1,7 @@
 import jax
 import jax.numpy as jnp
-from jax.typing import ArrayLike
 import time
-from quicksig.batch_ops import batch_tensor_product, batch_seq_tensor_product
+from quicksig.batch_ops import batch_tensor_product
 
 
 @jax.jit

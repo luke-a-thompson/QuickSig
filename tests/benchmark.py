@@ -7,7 +7,7 @@ import argparse
 import json
 from pathlib import Path
 from tests.test_helpers import generate_scalar_path
-from quicksig.get_signatures import get_signature
+from quicksig import get_signature
 import jax
 
 PRNG = jax.random.PRNGKey(0)
