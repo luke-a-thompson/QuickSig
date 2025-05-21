@@ -1,6 +1,6 @@
 # QuickSig
 
-A fast signature computation library using JAX.
+An extremely simple, fast signature computation library in Jax.
 
 ## Installation
 

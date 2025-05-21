@@ -110,29 +110,23 @@ def batch_cauchy_prod(x: list[jax.Array], y: list[jax.Array], depth: int, S_leve
     return out
 
 
-def batch_tensor_log(sig_flat: jax.Array, depth: int, n_features: int) -> jax.Array:
-    r"""
-    Compute the log of a batched tensor.
-    """
-    B = sig_flat.shape[0]
-    # Compute the dimension of each level: $$[\mathrm{n\_features}, \mathrm{n\_features}^2, \ldots, \mathrm{n\_features}^{\mathrm{depth}} ]$$
-    level_sizes = n_features ** jnp.arange(1, depth + 1)
-    splits = jnp.cumsum(level_sizes[:-1]) if depth > 1 else jnp.array([], dtype=sig_flat.dtype)
-    # S_levels: list of [S_1, S_2, ..., S_depth], each S_p is (batch, n_features^p)
-    sig_levels = jnp.split(sig_flat, splits, axis=-1)  # list of (batch, d**p)
+def batch_tensor_log(sig_levels: list[jax.Array], n_features: int) -> jax.Array:
+    """Compute the log of a batched tensor."""
+    assert isinstance(sig_levels, list), "sig_levels must be a list of jax.Array signatures per level"
+    B = sig_levels[0].shape[0]
 
-    # S_levels[k] = $$T^{\otimes k}, \quad k=1,\dots,\text{depth}$$
+    # Reshape each level to have the proper tensor structure
     sig_levels = [lvl.reshape((B,) + (n_features,) * (k + 1)) for k, lvl in enumerate(sig_levels)]
 
     result = [jnp.zeros_like(t) for t in sig_levels]
     tensor_exp_lvl = sig_levels
 
-    for n in range(1, depth + 1):
+    for n in range(1, len(sig_levels) + 1):
         coef = (-1.0) ** (n - 1) / n  # $$c_k = (-1)^{k-1}/k$$
         result = [res + coef * p for res, p in zip(result, tensor_exp_lvl)]  # $$L_k \leftarrow L_k + \frac{(-1)^{k-1}}{k} \cdot T^{\otimes k}$$, $$L_k$$ is accumulates for the sum
-        if n < depth:  # $$S^{⊗(n+1)}$$
+        if n < len(sig_levels):  # $$S^{⊗(n+1)}$$
             # Math note: We must use the Cauchy product because the atomic tensor product is not defined for lists of signatures.
-            tensor_exp_lvl = batch_cauchy_prod(tensor_exp_lvl, sig_levels, depth, sig_levels)
+            tensor_exp_lvl = batch_cauchy_prod(tensor_exp_lvl, sig_levels, len(sig_levels), sig_levels)
 
     # --- flatten and concatenate ------------------------------------
     log_flat = jnp.concatenate([lvl.reshape(B, -1) for lvl in result], axis=-1)

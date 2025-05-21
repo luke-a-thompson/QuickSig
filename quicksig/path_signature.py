@@ -25,7 +25,7 @@ def batch_signature_pure_jax(path: jax.Array, depth: int, stream: bool = False) 
     Returns:
         Let $$d=\text{n\_features}$$ and $$D_p=d^{\,p}.$$  The output dimension is $$\sum_{p=1}^{m}D_p.$$
         If $$\text{stream}=\text{False}$$:
-            shape $$(\text{batch\_size},\;\sum_{p=1}^{m}D_p).$$  
+            shape $$(\text{batch\_size},\;\sum_{p=1}^{m}D_p).$$
         If $$\text{stream}=\text{True}$$:
             shape $$(\text{batch\_size},\;\text{seq\_len}-1,\;\sum_{p=1}^{m}D_p).$$
     """
@@ -82,10 +82,8 @@ def batch_signature_pure_jax(path: jax.Array, depth: int, stream: bool = False) 
         return jnp.concatenate(arrays=[jnp.reshape(r, (batch_size, seq_len - 1, n_features ** (1 + idx))) for idx, r in enumerate(incremental_signatures)], axis=2)
 
 
-# if __name__ == "__main__":
-#     key = jax.random.PRNGKey(0)
-#     path = jax.random.normal(key, shape=(2, 100, 3))
-#     signature = batch_signature_pure_jax(path, depth=5)
-#     print(signature.shape)
-
-
+if __name__ == "__main__":
+    key = jax.random.PRNGKey(0)
+    path = jax.random.normal(key, shape=(2, 100, 50))  # Stream
+    signature = batch_signature_pure_jax(path, depth=5)
+    print(signature.shape)
