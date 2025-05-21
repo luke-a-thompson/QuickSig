@@ -1,18 +1,18 @@
 import jax
 from quicksig.batch_ops import batch_tensor_log
-from quicksig.signature import batch_signature
+from quicksig.path_signature import batch_signature_pure_jax
 from functools import partial
 from enum import Enum
 
 
 class LogSignatureType(Enum):
-    EXPANDED = "expanded"
+    EXPANDED = "expanded"  $$ \in T(V) $$
     LYNDON = "lyndon"
 
 
 def batch_log_signature(path: jax.Array, depth: int, log_signature_type: LogSignatureType) -> jax.Array:
     n_features = path.shape[-1]
-    signature: list[jax.Array] = batch_signature(path, depth, flatten=False)
+    signature: list[jax.Array] = batch_signature_pure_jax(path, depth, flatten=False)
     match log_signature_type:
         case LogSignatureType.EXPANDED:
             return batch_tensor_log(signature, n_features)

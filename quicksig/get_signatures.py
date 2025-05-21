@@ -1,5 +1,5 @@
 import jax
-from quicksig.signature import batch_signature
+from quicksig.path_signature import batch_signature_pure_jax
 from quicksig.log_signature import batch_log_signature, LogSignatureType
 from functools import partial
 
@@ -9,7 +9,7 @@ def get_signature(path: jax.Array, depth: int, stream: bool = False) -> jax.Arra
     """
     Compute the signature of a path.
     """
-    return batch_signature(path, depth, stream=stream, flatten=True)  # type: ignore
+    return batch_signature_pure_jax(path, depth, stream=stream)  # pyright: ignore[reportReturnType]
 
 
 @partial(jax.jit, static_argnames=["depth", "log_signature_type"])
@@ -17,4 +17,4 @@ def get_log_signature(path: jax.Array, depth: int, log_signature_type: LogSignat
     """
     Compute the log signature of a path.
     """
-    return batch_log_signature(path, depth, log_signature_type=log_signature_type)  # type: ignore
+    return batch_log_signature(path, depth, log_signature_type=log_signature_type)
