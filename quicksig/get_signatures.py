@@ -29,8 +29,8 @@ def flatten_signature(signature: list[jax.Array], stream: bool = False) -> jax.A
 
 if __name__ == "__main__":
     key = jax.random.PRNGKey(0)
-    path = jax.random.normal(key, shape=(10, 100, 3))  # Stream
+    path = jax.random.normal(key, shape=(10, 100, 2))  # Stream
     signature: jax.Array = get_signature(path, depth=5)
     print(signature.shape)
-    log_signature: jax.Array = get_log_signature(path, depth=5, log_signature_type=LogSignatureType.EXPANDED)
+    log_signature: jax.Array = get_log_signature(path, depth=5, log_signature_type=LogSignatureType.LYNDON)
     print(log_signature.shape)

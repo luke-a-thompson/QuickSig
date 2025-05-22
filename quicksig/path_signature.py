@@ -4,7 +4,6 @@ from functools import partial
 from quicksig.batch_ops import batch_restricted_exp, batch_seq_tensor_product
 
 
-@partial(jax.jit, static_argnames=["depth", "stream"])
 def batch_signature(path: jax.Array, depth: int, stream: bool = False) -> list[jax.Array]:
     r"""Computes the truncated path signature
     $$\operatorname{Sig}_{0,T}(X)=\bigl(S^{(1)}_{0,T},\,S^{(2)}_{0,T},\ldots,S^{(m)}_{0,T}\bigr),\qquad m=\text{depth}.$$
