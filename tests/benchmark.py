@@ -10,7 +10,7 @@ from tests.test_helpers import generate_scalar_path
 from quicksig import get_signature
 import jax
 
-PRNG = jax.random.PRNGKey(0)
+KEY = jax.random.PRNGKey(42)
 DEVICE = jax.devices("gpu")[0]  # fail fast if absent
 
 
@@ -66,21 +66,10 @@ def _save_baselines(baselines: Baselines) -> None:
         json.dump(baselines, f, indent=4)
 
 
-def _prepare_path(num_timesteps: int, channels: int) -> jnp.ndarray:
+def _prepare_path(key: jax.Array, num_timesteps: int, channels: int) -> jnp.ndarray:
     """Generate and prepare the path array once for reuse."""
-    _, vals = generate_scalar_path(num_timesteps=num_timesteps, n_features=channels)
-    return jnp.asarray(vals)[None, :, :]
-
-
-def _time_once(path: jnp.ndarray, depth: int) -> float:
-    """Return elapsed seconds for one forward pass."""
-    # Warmup run
-    compiled = get_signature(path, depth=depth, stream=False).compile()
-
-    # Actual measurement
-    start = time.perf_counter()
-    _ = compiled(path).block_until_ready()
-    return time.perf_counter() - start
+    _, vals = generate_scalar_path(key, num_timesteps=num_timesteps, n_features=channels)
+    return vals[None, :, :]
 
 
 def benchmark_signature(
@@ -92,7 +81,7 @@ def benchmark_signature(
     """
     Time each (steps, channels, depth) combination over `n_runs` evaluations and
     print the mean wall-clock latency in microseconds with standard deviation.
-    Outliers (bottom and top 5%) are removed before calculating statistics.
+    Outliers (bottom and top 2.5%) are removed before calculating statistics.
 
     Parameters
     ----------
@@ -119,9 +108,8 @@ def benchmark_signature(
     print("-" * len(header))
 
     for _, (num_timesteps, channels, depth) in enumerate(combinations, 1):
-        # Prepare path once for all runs
-        path = _prepare_path(num_timesteps, channels)
-        compiled = batch_signature.lower(path, depth=depth).compile()
+        path = _prepare_path(KEY, num_timesteps, channels)  # Pass the module-level _prng_key
+        compiled = get_signature.lower(path, depth=depth).compile()
         _ = compiled(path).block_until_ready()
 
         # Run measurements
@@ -133,9 +121,9 @@ def benchmark_signature(
 
         times_us = np.array(times) * 1e6
 
-        # Remove outliers (bottom and top 5%)
+        # Remove outliers (bottom and top 2.5%)
         sorted_times = np.sort(times_us)
-        n_outliers = int(len(sorted_times) * 0.05)
+        n_outliers = int(len(sorted_times) * 0.025)
         filtered_times = sorted_times[n_outliers:-n_outliers]
 
         mean_us = float(np.mean(filtered_times))

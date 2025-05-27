@@ -1,38 +1,53 @@
-import numpy as np
-from numpy.typing import NDArray
+import jax
 import jax.numpy as jnp
+from jax.random import PRNGKey
+from jax import lax
 from jax.typing import ArrayLike
 
 
-def generate_scalar_path(num_timesteps: int = 100, mu: float = 0.5, sigma: float = 0.3, n_features: int = 1) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
+def generate_scalar_path(key: jax.Array, num_timesteps: int = 100, mu: float = 0.5, sigma: float = 0.3, n_features: int = 1) -> tuple[jax.Array, jax.Array]:
     """
     Generate a multi-dimensional path following geometric Brownian motion (GBM).
+    Uses JAX for random number generation and path computation.
 
     Args:
-        num_steps: Number of timesteps in the path
-        mu: Drift coefficient (default: 0.5)
-        sigma: Volatility coefficient (default: 0.3)
-        n_features: Number of dimensions/features in the path (default: 1)
+        key: JAX PRNGKey for random number generation.
+        num_timesteps: Number of timesteps in the path.
+        mu: Drift coefficient (default: 0.5).
+        sigma: Volatility coefficient (default: 0.3).
+        n_features: Number of dimensions/features in the path (default: 1).
 
     Returns:
         Tuple containing:
-        - timestamps: Array of timestamps
-        - values: Array of path values following GBM, shape (num_steps, n_features)
+        - timestamps: JAX Array of timestamps, shape (num_timesteps,)
+        - values: JAX Array of path values following GBM, shape (num_timesteps, n_features)
     """
-    # Generate timestamps
-    timestamps = np.linspace(0, 1, num_timesteps)
-    dt = 1.0 / (num_timesteps - 1)
+    dtype = jnp.float32
+    timestamps = jnp.linspace(0, 1, num_timesteps, dtype=dtype)
+    dt = jnp.array(1.0 / (num_timesteps - 1), dtype=dtype)
+    std_normal_increments = jax.random.normal(key, (num_timesteps - 1, n_features), dtype=dtype)
 
-    # Generate Brownian increments for each feature
-    dW = np.random.normal(0, np.sqrt(dt), (num_timesteps - 1, n_features))
+    # Scale increments to be N(0, sqrt(dt)) for the GBM formula
+    dW_increments = std_normal_increments * jnp.sqrt(dt)  # Shape: (num_timesteps - 1, n_features)
 
-    # Initialize path with starting value of 1 for each feature
-    values = np.zeros((num_timesteps, n_features))
-    values[0] = 1.0
+    initial_path_value = jnp.ones(n_features, dtype=dtype)  # S_0, shape (n_features,)
 
-    # Generate GBM path using Euler-Maruyama scheme for each feature
-    for i in range(1, num_timesteps):
-        values[i] = values[i - 1] * (1 + mu * dt + sigma * dW[i - 1])
+    def gbm_euler_step(s_prev: jax.Array, dW_i: jax.Array) -> tuple[jax.Array, jax.Array]:
+        # s_prev: path value at t-1, shape (n_features,)
+        # dW_i: Brownian increment N(0,sqrt(dt)) for the step, shape (n_features,)
+        s_next = s_prev * (1 + mu * dt + sigma * dW_i)
+        return s_next, s_next  # (new_carry_state, value_to_scan_out)
+
+    # Perform the scan over the time steps using dW_increments
+    # initial_carry is S_0
+    _, path_values_from_t1 = lax.scan(gbm_euler_step, initial_path_value, dW_increments)
+    # path_values_from_t1 contains S_1, S_2, ..., S_{T-1} if num_timesteps-1 increments
+    # Shape: (num_timesteps - 1, n_features)
+
+    # Prepend S_0 to the path
+    s0_reshaped = initial_path_value.reshape(1, n_features)  # Shape: (1, n_features)
+    values = jnp.concatenate([s0_reshaped, path_values_from_t1], axis=0)
+    # values shape: (num_timesteps, n_features)
 
     return timestamps, values
 
