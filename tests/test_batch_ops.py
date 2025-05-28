@@ -19,27 +19,30 @@ def test_batch_log_inverse_of_exp() -> None:
     initial_x: jax.Array = jax.random.normal(key, shape=(B, n_features))
 
     # 2. Compute its tensor exponential: exp(X) = sum X^k/k!
-    exp_terms_tuple: tuple[jax.Array, ...] = batch_restricted_exp(initial_x, depth)
+    exp_terms_list = batch_restricted_exp(initial_x, depth)
 
     # For batch_tensor_log, we need to flatten and concatenate these terms
-    exp_terms_flat_list: list[jax.Array] = [term.reshape(B, -1) for term in exp_terms_tuple]
-    exp_concatenated: jax.Array = jnp.concatenate(exp_terms_flat_list, axis=-1)
+    exp_terms_flat_list = [term.reshape(B, -1) for term in exp_terms_list]
+    exp_concatenated = jnp.concatenate(exp_terms_flat_list, axis=-1)
 
     expected_total_dim: int = sum(n_features**k for k in range(1, depth + 1))
     assert exp_concatenated.shape == (B, expected_total_dim), f"Shape mismatch for exp_concatenated: expected {(B, expected_total_dim)}, got {exp_concatenated.shape}"
 
     # 3. Compute the tensor logarithm of the exponentiated terms
-    log_of_exp_concatenated: jax.Array = batch_tensor_log(exp_terms_flat_list, n_features)
+    log_of_exp_concatenated = batch_tensor_log(exp_terms_list, n_features)
 
-    assert log_of_exp_concatenated.shape == (
+    exp_terms_flat_list = [term.reshape(B, -1) for term in log_of_exp_concatenated]
+    exp_concatenated = jnp.concatenate(exp_terms_flat_list, axis=-1)
+
+    assert exp_concatenated.shape == (
         B,
         expected_total_dim,
-    ), f"Shape mismatch for log_of_exp_concatenated: expected {(B, expected_total_dim)}, got {log_of_exp_concatenated.shape}"
+    ), f"Shape mismatch for log_of_exp_concatenated: expected {(B, expected_total_dim)}, got {log_of_exp_concatenated[0].shape}"
 
     # 4. Extract the first term from the log series. This should be our original X.
     # The log series is L = L1 + L2 + ...
     # L1 is the part we want, and it has n_features dimensions.
-    recovered_x_flat: jax.Array = log_of_exp_concatenated[:, :n_features]
+    recovered_x_flat: jax.Array = log_of_exp_concatenated[0][:, :n_features]
     recovered_x: jax.Array = recovered_x_flat.reshape(initial_x.shape)
 
     # 5. Verify correctness
@@ -195,12 +198,11 @@ def test_batch_restricted_exp_output_structure(depth: int, n_features: int) -> N
     key = jax.random.PRNGKey(depth + n_features)
     x: jax.Array = jax.random.normal(key, shape=(B, n_features))
 
-    result_tuple: tuple[jax.Array, ...] = batch_restricted_exp(x, depth)
+    result_list = batch_restricted_exp(x, depth)
 
-    assert isinstance(result_tuple, tuple), "Output should be a tuple"
-    assert len(result_tuple) == depth, f"Expected tuple of length {depth}, got {len(result_tuple)}"
+    assert len(result_list) == depth, f"Expected tuple of length {depth}, got {len(result_list)}"
 
-    for k_idx, term in enumerate(result_tuple):
+    for k_idx, term in enumerate(result_list):
         order = k_idx + 1
         expected_term_shape = (B,) + (n_features,) * order
         assert term.shape == expected_term_shape, f"Term {k_idx} (order {order}) has shape {term.shape}, expected {expected_term_shape}"
@@ -323,13 +325,13 @@ def test_batch_tensor_log_specific_depths(depth: int, n_features: int) -> None:
     if depth == 1:
         # For depth 1, sig_flat is just X. log(X) should be X.
         sig_flat_input_list = [initial_x.reshape(B, -1)]
-        expected_log_flat = initial_x.reshape(B, -1)
+        expected_log_terms = [initial_x.reshape(B, -1)]
     else:
         # For depth > 1, we construct a signature S = exp(L) where L has only L1 = X and Lk=0 for k>1.
         # Then log(S) should give back L (i.e., only L1=X should be non-zero).
         # The `batch_restricted_exp` computes terms of X, X^2/2!, ..., X^depth/depth!
         # These terms form the signature S if L = (X, 0, 0, ...)
-        exp_terms_of_x: tuple[jax.Array, ...] = batch_restricted_exp(initial_x, depth)
+        exp_terms_of_x: list[jax.Array] = batch_restricted_exp(initial_x, depth)
 
         # Concatenate these terms to form sig_flat_input for batch_tensor_log
         sig_flat_input_list: list[jax.Array] = [term.reshape(B, -1) for term in exp_terms_of_x]
@@ -337,20 +339,16 @@ def test_batch_tensor_log_specific_depths(depth: int, n_features: int) -> None:
         # The expected log output should be (X, 0, 0, ..., 0) when flattened.
         # The first term (L1) is X, subsequent terms (L2, L3, ...) should be close to zero.
         expected_l1_flat = initial_x.reshape(B, -1)
-        expected_log_terms_flat_list: list[jax.Array] = [expected_l1_flat]
+        expected_log_terms: list[jax.Array] = [expected_l1_flat]
         for i in range(2, depth + 1):
             order_i_dim = n_features**i
-            expected_log_terms_flat_list.append(jnp.zeros((B, order_i_dim)))
-        expected_log_flat = jnp.concatenate(expected_log_terms_flat_list, axis=-1)
+            expected_log_terms.append(jnp.zeros((B, order_i_dim)))
 
     # Compute the tensor logarithm
-    log_output_flat = batch_tensor_log(sig_flat_input_list, n_features)
+    log_output_terms = batch_tensor_log(sig_flat_input_list, n_features)
 
-    # Verify shapes
-    total_dim_expected = sum(n_features**k for k in range(1, depth + 1))
-    assert log_output_flat.shape == (B, total_dim_expected), f"Output log_flat shape error"
-    assert expected_log_flat.shape == (B, total_dim_expected), f"Expected log_flat shape error"
-
-    assert jnp.allclose(
-        log_output_flat, expected_log_flat, atol=1e-5
-    ), f"Log output mismatch for depth={depth}, n_features={n_features}.\nGot:\n{log_output_flat}\nExpected:\n{expected_log_flat}"
+    # Verify shapes and values for each term
+    assert len(log_output_terms) == depth, f"Expected {depth} terms, got {len(log_output_terms)}"
+    for i, (output_term, expected_term) in enumerate(zip(log_output_terms, expected_log_terms)):
+        assert output_term.shape == expected_term.shape, f"Term {i} shape mismatch: got {output_term.shape}, expected {expected_term.shape}"
+        assert jnp.allclose(output_term, expected_term, atol=1e-5), f"Term {i} value mismatch for depth={depth}, n_features={n_features}.\nGot:\n{output_term}\nExpected:\n{expected_term}"

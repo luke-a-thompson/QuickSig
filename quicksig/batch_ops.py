@@ -56,7 +56,7 @@ def batch_seq_tensor_product(x: jax.Array, y: jax.Array) -> jax.Array:
 
 
 # @partial(jax.jit, static_argnames="depth")
-def batch_restricted_exp(x: jax.Array, depth: int) -> tuple[jax.Array, ...]:
+def batch_restricted_exp(x: jax.Array, depth: int) -> list[jax.Array]:
     r"""
     Return the truncated tensor-exponential terms
 
@@ -67,9 +67,9 @@ def batch_restricted_exp(x: jax.Array, depth: int) -> tuple[jax.Array, ...]:
         depth: int. The truncation order of the restricted tensor exponential, usually denoted k in literature.
 
     Returns:
-        A tuple of length max_order, where the k-th entry is x^{⊗(k+1)}/(k+1)!.
+        A tuple of length max_order, where the k-th entry is $$x^{⊗(k+1)}/(k+1)!$$.
 
-        terms[k-1] is the k-th order term \frac{x^{\otimes k}}{k!} so has shape `(..., n, n, …, n)` with `k` copies of the last dimension.
+        terms[k-1] is the k-th order term $$\frac{x^{\otimes k}}{k!}$$ so has shape `(..., n, n, …, n)` with `k` copies of the last dimension.
     """
     terms = [x]
     for k in range(1, depth):
@@ -77,7 +77,7 @@ def batch_restricted_exp(x: jax.Array, depth: int) -> tuple[jax.Array, ...]:
         next_factor = x / divisor
         next_power = batch_tensor_product(terms[-1], next_factor)  # $$x^{\otimes (k+1)} / (k+1)!$$
         terms.append(next_power)
-    return tuple(terms)
+    return terms
 
 
 def batch_cauchy_prod(x: list[jax.Array], y: list[jax.Array], depth: int, S_levels_shapes: list[jax.Array]) -> list[jax.Array]:

@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-from functools import partial
 from quicksig.batch_ops import batch_restricted_exp, batch_seq_tensor_product
 
 
@@ -41,10 +40,13 @@ def batch_signature(path: jax.Array, depth: int, stream: bool = False) -> list[j
     incremental_signatures = [depth_1_stream]
 
     if depth == 1:
-        return list(incremental_signatures[0] if stream else incremental_signatures[0][:, -1, :])
+        if stream:
+            return [depth_1_stream]
+        else:
+            return [depth_1_stream[:, -1, :]]
 
     # Precompute $$S^k_{0,1} = (\Delta X_1)^{\otimes k}$$ for $$k = 1, \ldots, \text{depth}$$, len = k
-    first_inc_tensor_exp_terms: tuple[jax.Array, ...] = batch_restricted_exp(path_increments[:, 0, :], depth=depth)
+    first_inc_tensor_exp_terms = batch_restricted_exp(path_increments[:, 0, :], depth=depth)
 
     # Precompute scaled increments: $$\Delta X_t / k$$ for $$k = 2, \ldots, \text{depth}$$
     divisors = jnp.arange(2, depth + 1, dtype=path_increments.dtype).reshape(depth - 1, 1, 1, 1)
@@ -77,7 +79,5 @@ def batch_signature(path: jax.Array, depth: int, stream: bool = False) -> list[j
 
     if not stream:
         return [jnp.reshape(c[:, -1], (batch_size, n_features ** (1 + idx))) for idx, c in enumerate(incremental_signatures)]
-        # return jnp.concatenate([jnp.reshape(c[:, -1], (batch_size, n_features ** (1 + idx))) for idx, c in enumerate(incremental_signatures)], axis=1)
     else:
         return [jnp.reshape(r, (batch_size, seq_len - 1, n_features ** (1 + idx))) for idx, r in enumerate(incremental_signatures)]
-        # return jnp.concatenate(arrays=[jnp.reshape(r, (batch_size, seq_len - 1, n_features ** (1 + idx))) for idx, r in enumerate(incremental_signatures)], axis=2)

@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 class LogSignatureType(StrEnum):
     EXPANDED = "expanded"  # $$ \in T(V) $$
-    LYNDON = "lyndon"
+    LYNDON = "lyndon"  # $$ \in \mathcal{L}(T(V)) $$
 
 
 def batch_log_signature(path: jax.Array, depth: int, log_signature_type: LogSignatureType) -> list[jax.Array]:
@@ -27,6 +27,28 @@ def batch_log_signature(path: jax.Array, depth: int, log_signature_type: LogSign
 
 
 def duval_algorithm(depth: int, dim: int) -> list[jax.Array]:
+    """Generates lists of words (integer sequences) for each level up to a specified depth.
+
+    These words typically correspond to the Lyndon word basis.
+
+    Args:
+        depth (int): The maximum length of words to generate. This corresponds to the
+               depth of the signature or log-signature. Must be > 0.
+        dim (int): The dimension in path space, also representing the size of the
+             alphabet (0 to dim-1) from which words are constructed. Must be >= 1.
+
+    Returns:
+        list[jax.Array]: A list of JAX arrays with len(list) == depth.
+        The k-th JAX array contains words of length `k+1`.
+        Each word is a row in the JAX array, so `result[k]` has shape `(num_words_at_length_k+1, k+1)`.
+        If no words of a certain length are generated (e.g., for `dim=1` and length > 1), the corresponding JAX array will have shape `(0, k+1)`.
+    """
+    if dim == 1:
+        # For dim=1, only one Lyndon word of length 1 exists: [0], all higher-order Lyndon word lists are empty.
+        first_level_word = [jnp.array([[0]], dtype=jnp.int32)]  # Word [0], length 1
+        higher_level_empty_words = [jnp.empty((0, i + 1), dtype=jnp.int32) for i in range(1, depth)]
+        return first_level_word + higher_level_empty_words
+
     list_of_words = defaultdict(list)
     word = [-1]
     while word:
