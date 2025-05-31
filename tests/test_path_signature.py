@@ -2,7 +2,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from quicksig import get_signature, get_log_signature
-from quicksig.log_signature import LogSignatureType
 import pytest
 from tests.test_helpers import generate_scalar_path, signature_dim, _linear_path, lyndon_words_dim
 
@@ -47,7 +46,7 @@ def test_log_signature_shape(channels: int, depth: int, log_signature_type: str)
 
     _, vals = generate_scalar_path(subkey, n_features=channels)
     path = vals[None, :, :]  # vals is already JAX array
-    log_sig = get_log_signature(path, depth=depth, log_signature_type=LogSignatureType(log_signature_type))
+    log_sig = get_log_signature(path, depth=depth, log_signature_type=log_signature_type)
 
     # For expanded type, dimension is same as signature
     # For lyndon type, dimension is number of Lyndon words

@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-from jax.random import PRNGKey
 from jax import lax
 from jax.typing import ArrayLike
 import math

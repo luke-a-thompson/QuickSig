@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-import pytest  # Add pytest import for parameterization
+import pytest
 from quicksig.batch_ops import batch_restricted_exp, batch_tensor_log, batch_tensor_product, batch_seq_tensor_product, batch_cauchy_prod
 
 

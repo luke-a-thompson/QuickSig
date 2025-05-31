@@ -2,7 +2,8 @@ import jax
 import jax.numpy as jnp
 from functools import partial
 from quicksig.path_signature import batch_signature
-from quicksig.log_signature import batch_log_signature, LogSignatureType
+from quicksig.log_signature import batch_log_signature
+from typing import Literal
 
 
 @partial(jax.jit, static_argnames=["depth", "stream"])
@@ -15,7 +16,7 @@ def get_signature(path: jax.Array, depth: int, stream: bool = False) -> jax.Arra
 
 
 @partial(jax.jit, static_argnames=["depth", "log_signature_type"])
-def get_log_signature(path: jax.Array, depth: int, log_signature_type: LogSignatureType) -> jax.Array:
+def get_log_signature(path: jax.Array, depth: int, log_signature_type: Literal["expanded", "lyndon"]) -> jax.Array:
     """
     Compute the log signature of a path.
     """
@@ -32,5 +33,5 @@ if __name__ == "__main__":
     path = jax.random.normal(key, shape=(10, 100, 2))  # Stream
     signature: jax.Array = get_signature(path, depth=5)
     print(signature.shape)
-    log_signature: jax.Array = get_log_signature(path, depth=5, log_signature_type=LogSignatureType.LYNDON)
+    log_signature: jax.Array = get_log_signature(path, depth=5, log_signature_type="lyndon")
     print(log_signature.shape)

@@ -1,24 +1,23 @@
 import jax
 from quicksig.batch_ops import batch_tensor_log
 from quicksig.path_signature import batch_signature
-from enum import StrEnum
 
+from typing import Literal
 from collections import defaultdict
 import jax.numpy as jnp
 
 
-class LogSignatureType(StrEnum):
-    EXPANDED = "expanded"  # $$ \in T(V) $$
-    LYNDON = "lyndon"  # $$ \in \mathcal{L}(T(V)) $$
+def batch_log_signature(path: jax.Array, depth: int, log_signature_type: Literal["expanded", "lyndon"]) -> list[jax.Array]:
+    """
+    Compute the log signature of a path.
+    """
 
-
-def batch_log_signature(path: jax.Array, depth: int, log_signature_type: LogSignatureType) -> list[jax.Array]:
     n_features = path.shape[-1]
     signature: list[jax.Array] = batch_signature(path, depth, stream=False)
     match log_signature_type:
-        case LogSignatureType.EXPANDED:
+        case "expanded":
             return batch_tensor_log(signature, n_features)
-        case LogSignatureType.LYNDON:
+        case "lyndon":
             indices = duval_algorithm(depth, n_features)
             log_signature = batch_tensor_log(signature, n_features)
             return compress(log_signature, indices)
@@ -54,7 +53,6 @@ def duval_algorithm(depth: int, dim: int) -> list[jax.Array]:
     while word:
         word[-1] += 1
         m = len(word)
-        # yield word
         list_of_words[m - 1].append(jnp.array(word))
         while len(word) < depth:
             word.append(word[-m])
