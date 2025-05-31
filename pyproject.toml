@@ -10,11 +10,15 @@ authors = [
 ]
 dependencies = [
     "jax[cuda12]>=0.6.0",
-    "numpy>=2.2.5",
 ]
 
 [project.optional-dependencies]
+compressor = [
+    "equinox>=0.12.2",
+    "optax>=0.2.4",
+]
 dev = [
+    "numpy>=2.2.5",
     "lovely-jax>=0.1.3",
     "pytest>=8.3.5",
     "pytest-cov>=6.1.1",
