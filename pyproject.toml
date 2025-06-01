@@ -50,7 +50,7 @@ dev = [
     "black>=24.2.0",
 ]
 all = [
-    "quicksig[cuda,compressor,dev]"
+    "quicksig[cuda,dev]"
 ]
 
 [build-system]
