@@ -1,8 +1,8 @@
 import jax
 import jax.numpy as jnp
 from functools import partial
-from quicksig.path_signature import batch_signature
-from quicksig.log_signature import batch_log_signature
+from quicksig.path_signature import path_signature
+from quicksig.log_signature import path_log_signature
 from typing import Literal
 
 
@@ -11,7 +11,7 @@ def get_signature(path: jax.Array, depth: int, stream: bool = False) -> jax.Arra
     """
     Compute the signature of a path.
     """
-    signature = batch_signature(path, depth, stream=stream)  # pyright: ignore[reportReturnType]
+    signature = path_signature(path, depth, stream=stream)  # pyright: ignore[reportReturnType]
     return flatten_signature(signature, stream=stream)
 
 
@@ -20,18 +20,18 @@ def get_log_signature(path: jax.Array, depth: int, log_signature_type: Literal["
     """
     Compute the log signature of a path.
     """
-    log_signature = batch_log_signature(path, depth, log_signature_type=log_signature_type)
+    log_signature = path_log_signature(path, depth, log_signature_type=log_signature_type)
     return flatten_signature(log_signature, stream=False)
 
 
 def flatten_signature(signature: list[jax.Array], stream: bool = False) -> jax.Array:
-    return jnp.concatenate(signature, axis=1) if not stream else jnp.concatenate(signature, axis=2)
+    return jnp.concatenate(signature, axis=0) if not stream else jnp.concatenate(signature, axis=2)
 
 
 if __name__ == "__main__":
     key = jax.random.PRNGKey(0)
-    path = jax.random.normal(key, shape=(10, 100, 2))  # Stream
-    signature: jax.Array = get_signature(path, depth=5)
+    path = jax.random.normal(key, shape=(5, 100, 3))  # Stream
+    signature: jax.Array = jax.vmap(get_signature, in_axes=(0, None, None))(path, 4, False)
     print(signature.shape)
-    log_signature: jax.Array = get_log_signature(path, depth=5, log_signature_type="lyndon")
+    log_signature: jax.Array = jax.vmap(get_log_signature, in_axes=(0, None, None))(path, 4, "lyndon")
     print(log_signature.shape)

@@ -1,7 +1,6 @@
 import time
 from typing import TypedDict
 from collections.abc import Iterable
-import jax.numpy as jnp
 import numpy as np
 import argparse
 import json
@@ -11,7 +10,7 @@ from quicksig import get_signature
 import jax
 
 KEY = jax.random.PRNGKey(42)
-DEVICE = jax.devices("gpu")[0]  # fail fast if absent
+DEVICE = jax.devices("cpu")[0]  # fail fast if absent
 
 
 class BenchmarkResult(TypedDict):
@@ -66,12 +65,6 @@ def _save_baselines(baselines: Baselines) -> None:
         json.dump(baselines, f, indent=4)
 
 
-def _prepare_path(key: jax.Array, num_timesteps: int, channels: int) -> jnp.ndarray:
-    """Generate and prepare the path array once for reuse."""
-    _, vals = generate_scalar_path(key, num_timesteps=num_timesteps, n_features=channels)
-    return vals[None, :, :]
-
-
 def benchmark_signature(
     combinations: Iterable[tuple[int, int, int]] = _DEFAULT_COMBINATIONS,
     n_runs: int = 100,
@@ -108,7 +101,7 @@ def benchmark_signature(
     print("-" * len(header))
 
     for _, (num_timesteps, channels, depth) in enumerate(combinations, 1):
-        path = _prepare_path(KEY, num_timesteps, channels)  # Pass the module-level _prng_key
+        path = generate_scalar_path(KEY, num_timesteps, channels)
         compiled = get_signature.lower(path, depth=depth).compile()
         _ = compiled(path).block_until_ready()
 

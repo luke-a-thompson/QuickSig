@@ -10,7 +10,6 @@ An extremely fast signature computation library built with JAX for efficient pat
 
 - **Fast**: Built on JAX with JIT compilation for maximum performance
 - **Flexible**: Supports both path signatures and log signatures
-- **Batch Processing**: Efficient batch computation for multiple paths
 - **GPU Support**: Leverages JAX's GPU acceleration when available
 
 ## Installation
@@ -57,7 +56,7 @@ batch_paths = jnp.array([
 ])
 
 # Compute signatures for all paths
-batch_signatures = get_signature(batch_paths, depth=2)
+batch_signatures = jax.vmap(get_signature, in_axes=(0, None, None))(batch_paths, 2, False)
 ```
 
 ## API Reference

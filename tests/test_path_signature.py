@@ -2,8 +2,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from quicksig import get_signature, get_log_signature
+from quicksig.utils import compute_signature_dim, compute_log_signature_dim
 import pytest
-from tests.test_helpers import generate_scalar_path, signature_dim, _linear_path, lyndon_words_dim
+from tests.test_helpers import generate_scalar_path, _linear_path
 
 # Rename TEST_KEY to _test_key
 _test_key = jax.random.PRNGKey(42)
@@ -16,10 +17,9 @@ def test_gbm_shape_and_positive(num_steps: int, n_features: int) -> None:
     global _test_key
     _test_key, subkey = jax.random.split(_test_key)
 
-    ts, vals = generate_scalar_path(subkey, num_timesteps=num_steps, n_features=n_features)
-    assert ts.shape == (num_steps,)
-    assert vals.shape == (num_steps, n_features)
-    assert jnp.all(vals > 0.0), "GBM should remain positive"
+    path = generate_scalar_path(subkey, num_timesteps=num_steps, n_features=n_features)
+    assert path.shape == (num_steps, n_features)
+    assert jnp.all(path > 0.0), "GBM should remain positive"
 
 
 @pytest.mark.parametrize("channels", [1, 2])
@@ -29,59 +29,57 @@ def test_signature_shape(channels: int, depth: int) -> None:
     global _test_key
     _test_key, subkey = jax.random.split(_test_key)
 
-    _, vals = generate_scalar_path(subkey, n_features=channels)
-    path = vals[None, :, :]
+    path = generate_scalar_path(subkey, n_features=channels)
     sig = get_signature(path, depth=depth)
-    expected_dim = signature_dim(channels, depth)
-    assert sig.shape == (1, expected_dim)
+    expected_dim = compute_signature_dim(depth, channels)
+    assert sig.shape == (expected_dim,), f"Expected shape {expected_dim}, got {sig.shape}"
 
 
 @pytest.mark.parametrize("channels", [1, 2])
 @pytest.mark.parametrize("depth", [1, 2, 3])
 @pytest.mark.parametrize("log_signature_type", ["expanded", "lyndon"])
-def test_log_signature_shape(channels: int, depth: int, log_signature_type: str) -> None:
+def test_log_signature_shape(depth: int, channels: int, log_signature_type: str) -> None:
     """Log signature tensor dimension matches algebraic formula."""
     global _test_key
     _test_key, subkey = jax.random.split(_test_key)
 
-    _, vals = generate_scalar_path(subkey, n_features=channels)
-    path = vals[None, :, :]  # vals is already JAX array
+    path = generate_scalar_path(subkey, n_features=channels)
     log_sig = get_log_signature(path, depth=depth, log_signature_type=log_signature_type)
 
     # For expanded type, dimension is same as signature
     # For lyndon type, dimension is number of Lyndon words
     if log_signature_type == "expanded":
-        expected_dim = signature_dim(channels, depth)
+        expected_dim = compute_signature_dim(depth, channels)
     else:  # lyndon
         # Number of Lyndon words at each level
         # expected_dim = sum(channels * (channels**k - 1) // (channels - 1) if channels > 1 else 1 for k in range(1, depth + 1))
-        expected_dim = lyndon_words_dim(channels, depth)
+        expected_dim = compute_log_signature_dim(depth, channels)
 
-    assert log_sig.shape == (1, expected_dim), f"Expected shape (1, {expected_dim}), got {log_sig.shape}"
+    assert log_sig.shape == (expected_dim,), f"Expected shape {expected_dim}, got {log_sig.shape}"
 
 
 def test_linear_path_exactness() -> None:
-    """
-    For a straight-line 1-D path x(t)=αt with total increment Δx,
-    the level-k iterated integral equals (Δx)^k / k!.
+    r"""
+    For a straight-line 1-D path $$x(t) = \alpha t$$ with total increment $$\Delta x$$,
+    the level-k iterated integral equals $$(\Delta x)^k / k!$$.
     """
     delta_x = -0.08840573
     num_steps = 20
     depth = 3
     path = _linear_path(0.0, delta_x, num_steps=num_steps, channels=1)
-    sig = get_signature(path, depth=depth)[0]
+    sig = get_signature(path, depth=depth)
 
     # Ground‑truth closed form
-    expected = jnp.array([delta_x, delta_x**2 / 2.0, delta_x**3 / 6.0], dtype=jnp.float32)
+    expected = jnp.array([delta_x, delta_x**2 / 2.0, delta_x**3 / 6.0])
 
     # Convert JAX arrays to NumPy arrays for comparison with np.testing
-    np.testing.assert_allclose(np.asarray(sig), np.asarray(expected), atol=1e-6, rtol=1e-6)
+    np.testing.assert_allclose(np.asarray(sig), np.asarray(expected), atol=1e-8, rtol=1e-8)
 
 
 def test_zero_path_vanishes() -> None:
     """
     A constant path has zero increment, hence zero signature beyond level 0.
     """
-    const_path = jnp.zeros((1, 50, 2), dtype=jnp.float32)
+    const_path = jnp.zeros((50, 2), dtype=jnp.float32)
     sig = get_signature(const_path, depth=4)
     assert jnp.allclose(sig, 0.0)
