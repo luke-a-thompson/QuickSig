@@ -6,15 +6,21 @@ import argparse
 import json
 from pathlib import Path
 from tests.test_helpers import generate_scalar_path
-from quicksig import get_signature
 import jax
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
+
+import quicksig
+import signax
 
 KEY = jax.random.PRNGKey(42)
 DEVICE = jax.devices("cpu")[0]  # fail fast if absent
+console = Console()
 
 
 class BenchmarkResult(TypedDict):
-    mean_us: float
+    median_us: float
     std_us: float
 
 
@@ -41,6 +47,8 @@ _DEFAULT_COMBINATIONS: list[tuple[int, int, int]] = [
     (100000, 5, 5),
     (200000, 4, 3),
     (200000, 5, 4),
+    (200000, 5, 5),
+    (200000, 60, 5),
 ]
 
 
@@ -96,68 +104,94 @@ def benchmark_signature(
     baselines = _load_baselines()
     has_regression = False
 
-    header = f"{'steps':<8}{'channels':>10}{'depth':>8}{'mean μs':>12}{'std μs':>12}{'prev mean':>12}{'% diff':>12}{'regression':>12}"
-    print(header)
-    print("-" * len(header))
+    table = Table(title="Signature Benchmark Results")
+    table.add_column("Steps", justify="left")
+    table.add_column("Channels", justify="left")
+    table.add_column("Depth", justify="left")
+    table.add_column("QuickSig (μs)", justify="left")
+    table.add_column("Signax (μs)", justify="left")
 
     for _, (num_timesteps, channels, depth) in enumerate(combinations, 1):
         path = generate_scalar_path(KEY, num_timesteps, channels)
-        compiled = get_signature.lower(path, depth=depth).compile()
-        _ = compiled(path).block_until_ready()
+        
+        # QuickSig benchmark
+        compiled_quicksig = jax.jit(lambda x: quicksig.get_signature(x, depth=depth))
+        _ = compiled_quicksig(path).block_until_ready()
+
+        # Signax benchmark
+        compiled_signax = jax.jit(lambda x: signax.signature(x, depth=depth))
+        _ = compiled_signax(path).block_until_ready()
 
         # Run measurements
-        times = []
+        quicksig_times = []
+        signax_times = []
         for _ in range(n_runs):
+            # QuickSig timing
             start = time.perf_counter()
-            _ = compiled(path).block_until_ready()
-            times.append(time.perf_counter() - start)
+            _ = compiled_quicksig(path).block_until_ready()
+            quicksig_times.append(time.perf_counter() - start)
 
-        times_us = np.array(times) * 1e6
+            # Signax timing
+            start = time.perf_counter()
+            _ = compiled_signax(path).block_until_ready()
+            signax_times.append(time.perf_counter() - start)
 
-        # Remove outliers (bottom and top 2.5%)
-        sorted_times = np.sort(times_us)
-        n_outliers = int(len(sorted_times) * 0.025)
-        filtered_times = sorted_times[n_outliers:-n_outliers]
+        # Process QuickSig times
+        quicksig_times_us = np.array(quicksig_times) * 1e6
+        sorted_quicksig = np.sort(quicksig_times_us)
+        n_outliers = int(len(sorted_quicksig) * 0.025)
+        filtered_quicksig = sorted_quicksig[n_outliers:-n_outliers]
+        quicksig_median = float(np.median(filtered_quicksig))
+        quicksig_std = float(np.std(filtered_quicksig))
 
-        mean_us = float(np.mean(filtered_times))
-        std_us = float(np.std(filtered_times))
+        # Process Signax times
+        signax_times_us = np.array(signax_times) * 1e6
+        sorted_signax = np.sort(signax_times_us)
+        filtered_signax = sorted_signax[n_outliers:-n_outliers]
+        signax_median = float(np.median(filtered_signax))
+        signax_std = float(np.std(filtered_signax))
 
         # Check for regression
         key = f"{num_timesteps}_{channels}_{depth}"
-        regression_info = ""
-        prev_mean = ""
-        pct_diff = ""
+        is_regression_case = False
         if check_regression and key in baselines["baselines"]:
             baseline = baselines["baselines"][key]
-            baseline_mean = baseline["mean_us"]
+            baseline_median = baseline["median_us"]
             baseline_std = baseline["std_us"]
-            prev_mean = f"{baseline_mean:>12.2f}"
-            pct_diff = f"{((mean_us - baseline_mean) / baseline_mean * 100):>11.1f}%"
-            if is_regression(mean_us, std_us, baseline_mean, baseline_std):
-                regression_info = f"⚠️ {mean_us/(baseline_mean):.1f}x"
+            if is_regression(quicksig_median, quicksig_std, baseline_median, baseline_std):
+                is_regression_case = True
                 has_regression = True
-            else:
-                regression_info = "✅"
-        else:
-            prev_mean = "N/A"
-            pct_diff = "N/A"
 
-        print(f"{num_timesteps:<8}{channels:>10}{depth:>8}{mean_us:>12.2f}{std_us:>12.2f}{prev_mean:>12}{pct_diff:>12}{regression_info:>12}")
+        # Format the medians with color
+        quicksig_text = f"{quicksig_median:.1f} ± {2*quicksig_std:.1f}"
+        signax_text = f"{signax_median:.1f} ± {2*signax_std:.1f}"
+        
+        if check_regression:
+            quicksig_text = Text(quicksig_text, style="red" if is_regression_case else "green")
+
+        table.add_row(
+            str(num_timesteps),
+            str(channels),
+            str(depth),
+            quicksig_text,
+            signax_text
+        )
 
         # Update baseline if requested
         if update_baseline:
-            baselines["baselines"][key] = BenchmarkResult(mean_us=mean_us, std_us=std_us)
+            baselines["baselines"][key] = BenchmarkResult(median_us=quicksig_median, std_us=quicksig_std)
 
     if update_baseline:
         _save_baselines(baselines)
 
+    console.print(table)
     return not has_regression
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run signature benchmarks")
     parser.add_argument("--check-regression", action="store_true", help="Check for performance regressions", default=True)
-    parser.add_argument("--update-baseline", action="store_true", help="Update baseline performance metrics")
+    parser.add_argument("--update-baseline", action="store_true", help="Update baseline performance metrics", default=True)
     args = parser.parse_args()
 
     benchmark_signature(combinations=_DEFAULT_COMBINATIONS, n_runs=100, check_regression=args.check_regression, update_baseline=args.update_baseline)
