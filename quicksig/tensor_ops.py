@@ -54,7 +54,6 @@ def seq_tensor_product(x: jax.Array, y: jax.Array) -> jax.Array:
     return x_bcast * y_bcast
 
 
-# @partial(jax.jit, static_argnames="depth")
 def restricted_tensor_exp(x: jax.Array, depth: int) -> list[jax.Array]:
     r"""
     Return the truncated tensor-exponential terms
