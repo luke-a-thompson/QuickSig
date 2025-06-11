@@ -5,6 +5,7 @@ from quicksig import get_signature, get_log_signature
 from quicksig.utils import compute_signature_dim, compute_log_signature_dim
 import pytest
 from tests.test_helpers import generate_scalar_path, _linear_path
+import signax
 
 # Rename TEST_KEY to _test_key
 _test_key = jax.random.PRNGKey(42)
@@ -119,3 +120,11 @@ def test_quadratic_path_signature(a: float, b: float) -> None:
 
     np.testing.assert_allclose(np.asarray(sig), np.asarray(expected), atol=1e-5, rtol=1e-5)
 
+def test_quicksig_signax_equivalence() -> None:
+    """
+    Test that the signature computed by QuickSig and Signax are equivalent.
+    """
+    path = generate_scalar_path(_test_key, n_features=2)
+    quicksig_sig = get_signature(path, depth=2)
+    signax_sig = signax.signature(path, depth=2)
+    np.testing.assert_allclose(np.asarray(quicksig_sig), np.asarray(signax_sig), atol=1e-5, rtol=1e-5)
