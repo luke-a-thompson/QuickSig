@@ -105,7 +105,7 @@ def benchmark_signature(
         baselines = _load_baselines()
         has_regression = False
 
-        table = Table(title="Signature Benchmark Results")
+        table = Table(title=f"Signature Benchmark Results on {jax_device.upper()}.")
         table.add_column("Steps", justify="left")
         table.add_column("Channels", justify="left")
         table.add_column("Depth", justify="left")
@@ -133,13 +133,11 @@ def benchmark_signature(
             signax_times = []
 
             for _ in tqdm(range(n_runs), desc="QuickSig", position=1, leave=False):
-                # QuickSig timing
                 start = time.perf_counter()
                 _ = compiled_quicksig(path).block_until_ready()
                 quicksig_times.append(time.perf_counter() - start)
 
             for _ in tqdm(range(n_runs), desc="Signax", position=1, leave=False):
-                # Signax timing
                 start = time.perf_counter()
                 _ = compiled_signax(path).block_until_ready()
                 signax_times.append(time.perf_counter() - start)
@@ -193,8 +191,9 @@ def benchmark_signature(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run signature benchmarks")
     parser.add_argument("--check-regression", action="store_true", help="Check for performance regressions", default=True)
-    parser.add_argument("--update-baseline", action="store_true", help="Update baseline performance metrics", default=True)
+    parser.add_argument("--update-baseline", action="store_true", help="Update baseline performance metrics")
     parser.add_argument("--device", choices=["cpu", "gpu"], default="gpu", help="JAX device to use for computations")
     args = parser.parse_args()
 
-    benchmark_signature(jax_device=args.device, n_runs=100, check_regression=args.check_regression, update_baseline=args.update_baseline)
+    benchmark_signature(jax_device="cpu", n_runs=100, check_regression=args.check_regression, update_baseline=args.update_baseline)
+    benchmark_signature(jax_device="gpu", n_runs=100, check_regression=args.check_regression, update_baseline=args.update_baseline)
