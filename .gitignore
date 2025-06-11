@@ -11,3 +11,6 @@ wheels/
 .pytest_cache/
 # Virtual environments
 .venv
+
+# Project-specific files
+tests/benchmark_baseline.json
