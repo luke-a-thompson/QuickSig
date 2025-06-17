@@ -55,7 +55,7 @@ def path_signature(path: jax.Array, depth: int, stream: bool) -> list[jax.Array]
 
     for k in range(1, depth):
         # Initialize accumulator:
-        # $$\text{Aux}^{(1)}_t = S^{k-1}_{0,t-1} + (\Delta X_t) / k!, \quad \forall t = 1, \ldots, N - 1$$
+        # $$\text{Aux}^{(1)}_t = S^1_{0,t-1} + \tfrac{\Delta X_t}{k+1}, \quad \forall t = 1, \ldots, N-1$$
         # Due to numpy indexing, :-1 and 1: are just numbers being added, the list-like indexing means vectorised addition over all seq_len - not actually adding 2 slices
         sig_accm = incremental_signatures[0][:-1, :] + path_increment_divided[k - 1, 1:, :]  # Shape: [seq_len - 1, n_features ** (k + 1)]
 
@@ -65,10 +65,12 @@ def path_signature(path: jax.Array, depth: int, stream: bool) -> list[jax.Array]
 
             scaled_increment = path_increment_divided[k - j - 2, 1:, :]  # $$\frac{ΔX_t}{(k-p+1)!}$$
 
-            #  $$Aux^{(p)}_t  = S^{(k-p)}_{0,t-1} + Aux^{(p-1)}_t ⊗ \frac{ΔX_t}{(k-p+1)!}, \quad \forall p = 1, \dots, k-1$$
+            #  $$\text{Aux}^{(p+1)}_t = S^{p+1}_{0,t-1} + \text{Aux}^{(p)}_t \otimes \tfrac{\Delta X_t}{k-p+1}, \quad \forall p = 1, \dots, k-1$$
             #  This is a recursive tensor product, so each addition is just one $$\Delta X_t$$ scaled by where we are in the recursion
             sig_accm = prev_signature_level_term + seq_tensor_product(sig_accm, scaled_increment)
 
+        # This final tensor product completes the recurrence for the signature increment.
+        # $$ \Delta S^{k+1}_t = \text{Aux}^{(k)}_t \otimes \Delta X_t $$
         sig_accm = seq_tensor_product(sig_accm, path_increments[1:, :])  # Shape: [seq_len - 1, k * (n_features ** (k + 1))], order increased by 1
 
         # Concatenate the first increment (timestep) with the rest of the signature

@@ -86,12 +86,15 @@ def test_zero_path_vanishes() -> None:
     assert jnp.allclose(sig, 0.0)
 
 
-@pytest.mark.parametrize("a, b", [
-    (1.0, 1.0),   # Original test case
-    (2.0, 1.0),   # Different 'a'
-    (1.0, 3.0),   # Different 'b'
-    (-1.0, 2.0),  # Negative 'a'
-])
+@pytest.mark.parametrize(
+    "a, b",
+    [
+        (1.0, 1.0),
+        (2.0, 1.0),
+        (1.0, 3.0),
+        (-1.0, 2.0),
+    ],
+)
 def test_quadratic_path_signature(a: float, b: float) -> None:
     """
     Tests the signature of a 2D path x(t) = (a*t, b*t^2/2).
@@ -113,12 +116,10 @@ def test_quadratic_path_signature(a: float, b: float) -> None:
     # Analytical signature
     # S_1 = (a*T, b*T^2/2)
     # S_2 = (a^2*T^2/2, a*b*T^3/3, a*b*T^3/6, b^2*T^4/8)
-    expected = jnp.array([
-        a * T, b * T**2 / 2.0,
-        a**2 * T**2 / 2.0, a * b * T**3 / 3.0, a * b * T**3 / 6.0, b**2 * T**4 / 8.0
-    ])
+    expected = jnp.array([a * T, b * T**2 / 2.0, a**2 * T**2 / 2.0, a * b * T**3 / 3.0, a * b * T**3 / 6.0, b**2 * T**4 / 8.0])
 
     np.testing.assert_allclose(np.asarray(sig), np.asarray(expected), atol=1e-5, rtol=1e-5)
+
 
 def test_quicksig_signax_equivalence() -> None:
     """
