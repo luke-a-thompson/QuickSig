@@ -25,13 +25,11 @@ def get_log_signature(path: jax.Array, depth: int, log_signature_type: Literal["
 
 
 def flatten_signature(signature: list[jax.Array], stream: bool = False) -> jax.Array:
-    return jnp.concatenate(signature, axis=0) if not stream else jnp.concatenate(signature, axis=2)
+    return jnp.concatenate(signature, axis=0) if not stream else jnp.concatenate(signature, axis=1)
 
 
 if __name__ == "__main__":
     key = jax.random.PRNGKey(0)
     path = jax.random.normal(key, shape=(5, 100, 3))  # Stream
-    signature: jax.Array = jax.vmap(get_signature, in_axes=(0, None, None))(path, 4, False)
+    signature: jax.Array = jax.vmap(get_signature, in_axes=(0, None, None))(path, 4, True)
     print(signature.shape)
-    log_signature: jax.Array = jax.vmap(get_log_signature, in_axes=(0, None, None))(path, 4, "lyndon")
-    print(log_signature.shape)
