@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from quicksig import get_signature, get_log_signature
-from quicksig.utils import compute_signature_dim, compute_log_signature_dim
+from quicksig.get_signature_dim import get_signature_dim, get_log_signature_dim
 import pytest
 from tests.test_helpers import generate_scalar_path, _linear_path
 import signax
@@ -32,7 +32,7 @@ def test_signature_shape(channels: int, depth: int) -> None:
 
     path = generate_scalar_path(subkey, n_features=channels)
     sig = get_signature(path, depth=depth)
-    expected_dim = compute_signature_dim(depth, channels)
+    expected_dim = get_signature_dim(depth, channels)
     assert sig.shape == (expected_dim,), f"Expected shape {expected_dim}, got {sig.shape}"
 
 
@@ -50,11 +50,11 @@ def test_log_signature_shape(depth: int, channels: int, log_signature_type: str)
     # For expanded type, dimension is same as signature
     # For lyndon type, dimension is number of Lyndon words
     if log_signature_type == "expanded":
-        expected_dim = compute_signature_dim(depth, channels)
+        expected_dim = get_signature_dim(depth, channels)
     else:  # lyndon
         # Number of Lyndon words at each level
         # expected_dim = sum(channels * (channels**k - 1) // (channels - 1) if channels > 1 else 1 for k in range(1, depth + 1))
-        expected_dim = compute_log_signature_dim(depth, channels)
+        expected_dim = get_log_signature_dim(depth, channels)
 
     assert log_sig.shape == (expected_dim,), f"Expected shape {expected_dim}, got {log_sig.shape}"
 

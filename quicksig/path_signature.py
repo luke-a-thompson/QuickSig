@@ -23,7 +23,7 @@ def path_signature(path: jax.Array, depth: int, stream: bool) -> list[jax.Array]
     Returns:
         Let $$d=\text{n\_features}$$ and $$D_p=d^{\,p}.$$  The output dimension is $$\sum_{p=1}^{m}D_p.$$
         If $$\text{stream}=\text{False}$$:
-            shape $$(\;\sum_{p=1}^{m}D_p).$$
+            shape $$(\sum_{p=1}^{m}D_p).$$
         If $$\text{stream}=\text{True}$$:
             shape $$(\;\text{seq\_len}-1,\;\sum_{p=1}^{m}D_p).$$
     """
@@ -54,9 +54,7 @@ def path_signature(path: jax.Array, depth: int, stream: bool) -> list[jax.Array]
     path_increment_divided = jnp.expand_dims(path_increments, axis=0) / divisors
 
     for k in range(1, depth):
-        # Initialize accumulator:
-        # $$\text{Aux}^{(1)}_t = S^1_{0,t-1} + \tfrac{\Delta X_t}{k+1}, \quad \forall t = 1, \ldots, N-1$$
-        # Due to numpy indexing, :-1 and 1: are just numbers being added, the list-like indexing means vectorised addition over all seq_len - not actually adding 2 slices
+        # Initialize accumulator: $$\text{Aux}^{(1)}_t = S^1_{0,t-1} + \tfrac{\Delta X_t}{k+1}, \quad \forall t = 1, \ldots, N-1$$
         sig_accm = incremental_signatures[0][:-1, :] + path_increment_divided[k - 1, 1:, :]  # Shape: [seq_len - 1, n_features ** (k + 1)]
 
         for j in range(k - 1):
@@ -80,7 +78,6 @@ def path_signature(path: jax.Array, depth: int, stream: bool) -> list[jax.Array]
 
         # The depth-k signature up to time t
         incremental_signatures.append(jnp.cumsum(sig_accm, axis=0))
-        # assert False, incremental_signatures
 
     if not stream:
         return [jnp.reshape(c[-1, :], (n_features ** (1 + idx))) for idx, c in enumerate(incremental_signatures)]

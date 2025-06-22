@@ -1,7 +1,11 @@
 import math
+from functools import partial
+
+import jax
 
 
-def compute_signature_dim(depth: int, dim: int) -> int:
+@partial(jax.jit, static_argnames=("depth", "dim", "flatten"))
+def get_signature_dim(depth: int, dim: int, flatten: bool = True) -> int | list[int]:
     """Compute the dimension of the signature space for a given depth and dimension.
 
     Args:
@@ -11,7 +15,10 @@ def compute_signature_dim(depth: int, dim: int) -> int:
     Returns:
         int: The dimension of the signature space.
     """
-    return sum(dim**k for k in range(1, depth + 1))
+    if flatten:
+        return sum(dim**k for k in range(1, depth + 1))
+    else:
+        return [dim**k for k in range(1, depth + 1)]
 
 
 def get_prime_factorization(n: int) -> dict[int, int]:
@@ -60,8 +67,9 @@ def num_lyndon_words_of_length_k(num_symbols: int, length: int) -> int:
     return total_sum // length
 
 
-def compute_log_signature_dim(depth: int, dim: int) -> int:
-    """Compute the dimension of the log-signature space for a given depth and dimension.
+@partial(jax.jit, static_argnames=("depth", "dim", "flatten"))
+def get_log_signature_dim(depth: int, dim: int, flatten: bool = True) -> int | list[int]:
+    """Compute the dimension of the log-signature space for a given depth and dimension using Witt's formula.
 
     Args:
         depth (int): The depth of the log-signature.
@@ -70,16 +78,14 @@ def compute_log_signature_dim(depth: int, dim: int) -> int:
     Returns:
         int: The dimension of the log-signature space.
     """
-    return sum(num_lyndon_words_of_length_k(dim, k) for k in range(1, depth + 1))
+    if flatten:
+        return sum(num_lyndon_words_of_length_k(dim, k) for k in range(1, depth + 1))
+    else:
+        return [num_lyndon_words_of_length_k(dim, k) for k in range(1, depth + 1)]
 
 
 if __name__ == "__main__":
-    import jax
-    from quicksig import get_signature, get_log_signature
-
-    key = jax.random.PRNGKey(0)
-    path = jax.random.normal(key, shape=(10, 100, 2))  # Stream
-    signature: jax.Array = get_signature(path, depth=2)
-    print(signature.shape, compute_signature_dim(5, 2))
-    log_signature: jax.Array = get_log_signature(path, depth=5, log_signature_type="lyndon")
-    print(log_signature.shape, compute_log_signature_dim(5, 2))
+    sig_dim = get_signature_dim(5, 2)
+    print(sig_dim)
+    log_sig_dim = get_log_signature_dim(5, 2)
+    print(log_sig_dim)

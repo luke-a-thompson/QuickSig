@@ -10,10 +10,11 @@ Main functions:
 """
 
 from .get_signatures import get_signature, get_log_signature
+from .get_signature_dim import get_signature_dim, get_log_signature_dim
 
 __version__ = "0.1.0"
 __author__ = "Luke Thompson"
 __email__ = "luke.thompson@sydney.edu.au"
 __license__ = "MIT"
 
-__all__ = ["get_signature", "get_log_signature"]
+__all__ = ["get_signature", "get_log_signature", "get_signature_dim", "get_log_signature_dim"]
