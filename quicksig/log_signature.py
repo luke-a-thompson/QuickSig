@@ -1,3 +1,4 @@
+from functools import partial
 import jax
 from quicksig.tensor_ops import tensor_log
 from quicksig.path_signature import path_signature
@@ -18,17 +19,20 @@ def path_log_signature(path: jax.Array, depth: int, log_signature_type: Literal[
         case "expanded":
             return tensor_log(signature, n_features)
         case "lyndon":
-            indices = duval_algorithm(depth, n_features)
+            indices = duval_generator(depth, n_features)
             log_signature = tensor_log(signature, n_features)
             return compress(log_signature, indices)
         case _:
             raise ValueError(f"Invalid log signature type: {log_signature_type}")
 
 
-def duval_algorithm(depth: int, dim: int) -> list[jax.Array]:
+@partial(jax.jit, static_argnames=["depth", "dim"])
+def duval_generator(depth: int, dim: int) -> list[jax.Array]:
     """Generates lists of words (integer sequences) for each level up to a specified depth.
 
     These words typically correspond to the Lyndon word basis.
+
+    Ref: https://www.lyndex.org/algo.php
 
     Args:
         depth (int): The maximum length of words to generate. This corresponds to the
@@ -132,3 +136,14 @@ def compress(expanded_terms: list[jax.Array], lyndon_indices: list[jax.Array]) -
         result_compressed.append(compressed_term)
 
     return result_compressed
+
+
+if __name__ == "__main__":
+    from quicksig import get_signature, get_log_signature
+
+    key = jax.random.PRNGKey(0)
+    path = jax.random.normal(key, shape=(5, 100, 3))  # Stream
+    signature: jax.Array = jax.vmap(get_signature, in_axes=(0, None, None))(path, 4, True)
+    print(signature.shape)
+    # signature: jax.Array = jax.vmap(get_signature, in_axes=(0, None, None))(path, 4, False)
+    # print(signature.shape)
