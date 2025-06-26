@@ -121,11 +121,25 @@ def test_quadratic_path_signature(a: float, b: float) -> None:
     np.testing.assert_allclose(np.asarray(sig), np.asarray(expected), atol=1e-5, rtol=1e-5)
 
 
-def test_quicksig_signax_equivalence() -> None:
+@pytest.mark.parametrize("n_features", [2, 3, 4])
+@pytest.mark.parametrize("depth", [2, 3])
+def test_quicksig_signax_equivalence(n_features: int, depth: int) -> None:
     """
     Test that the signature computed by QuickSig and Signax are equivalent.
     """
-    path = generate_scalar_path(_test_key, n_features=2)
-    quicksig_sig = get_signature(path, depth=2)
-    signax_sig = signax.signature(path, depth=2)
+    path = generate_scalar_path(_test_key, n_features=n_features)
+    quicksig_sig = get_signature(path, depth=depth)
+    signax_sig = signax.signature(path, depth=depth)
+    np.testing.assert_allclose(np.asarray(quicksig_sig), np.asarray(signax_sig), atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("n_features", [2, 3, 4])
+@pytest.mark.parametrize("depth", [2, 3])
+def test_quicksig_signax_equivalence_log_signature(n_features: int, depth: int) -> None:
+    """
+    Test that the log signature computed by QuickSig and Signax are equivalent.
+    """
+    path = generate_scalar_path(_test_key, n_features=n_features)
+    quicksig_sig = get_log_signature(path, depth=depth, log_signature_type="lyndon")
+    signax_sig = signax.logsignature(path, depth=depth)
     np.testing.assert_allclose(np.asarray(quicksig_sig), np.asarray(signax_sig), atol=1e-5, rtol=1e-5)
