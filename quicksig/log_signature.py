@@ -8,22 +8,46 @@ from collections import defaultdict
 import jax.numpy as jnp
 
 
-def path_log_signature(path: jax.Array, depth: int, log_signature_type: Literal["expanded", "lyndon"]) -> list[jax.Array]:
+def path_log_signature(
+    path: jax.Array,
+    depth: int,
+    log_signature_type: Literal["expanded", "lyndon"],
+    stream: bool,
+) -> list[jax.Array]:
     """
     Compute the log signature of a path.
+
+    Args:
+        path: A JAX array of shape (seq_len, n_features).
+        depth: The depth of the log signature.
+        log_signature_type: Type of log signature, "expanded" or "lyndon".
+        stream: If True, returns a stream of log signatures.
+
+    Returns:
+        A list of JAX arrays representing the log signature.
+        If stream is True, each array will have a leading time dimension.
     """
 
     n_features = path.shape[-1]
-    signature: list[jax.Array] = path_signature(path, depth, stream=False)
-    match log_signature_type:
-        case "expanded":
+    signature: list[jax.Array] = path_signature(path, depth, stream=stream)
+
+    if log_signature_type == "expanded":
+        if stream:
+            return jax.vmap(lambda sig: tensor_log(sig, n_features))(signature)
+        else:
             return tensor_log(signature, n_features)
-        case "lyndon":
-            indices = duval_generator(depth, n_features)
-            log_signature = tensor_log(signature, n_features)
+
+    elif log_signature_type == "lyndon":
+        indices = duval_generator(depth, n_features)
+
+        if stream:
+            return jax.vmap(lambda sig: compress(tensor_log(sig, n_features, flatten_output=False), indices))(signature)
+        else:
+            log_signature = tensor_log(signature, n_features, flatten_output=False)
             return compress(log_signature, indices)
-        case _:
-            raise ValueError(f"Invalid log signature type: {log_signature_type}")
+
+    else:
+        raise ValueError(f"Invalid log signature type: {log_signature_type}")
 
 
 @partial(jax.jit, static_argnames=["depth", "dim"])
@@ -143,7 +167,15 @@ if __name__ == "__main__":
 
     key = jax.random.PRNGKey(0)
     path = jax.random.normal(key, shape=(5, 100, 3))  # Stream
+
+    print("Signature stream shape:")
     signature: jax.Array = jax.vmap(get_signature, in_axes=(0, None, None))(path, 4, True)
     print(signature.shape)
-    # signature: jax.Array = jax.vmap(get_signature, in_axes=(0, None, None))(path, 4, False)
-    # print(signature.shape)
+
+    print("\nLog signature stream shape (expanded):")
+    log_signature_expanded: jax.Array = jax.vmap(get_log_signature, in_axes=(0, None, None, None))(path, 4, "lyndon", False)
+    print(log_signature_expanded.shape)
+
+    print("\nLog signature stream shape (lyndon):")
+    log_signature_lyndon: jax.Array = jax.vmap(get_log_signature, in_axes=(0, None, None, None))(path, 4, "lyndon", True)
+    print(log_signature_lyndon.shape)

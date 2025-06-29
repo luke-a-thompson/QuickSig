@@ -15,13 +15,18 @@ def get_signature(path: jax.Array, depth: int, stream: bool = False) -> jax.Arra
     return flatten_signature(signature, stream=stream)
 
 
-@partial(jax.jit, static_argnames=["depth", "log_signature_type"])
-def get_log_signature(path: jax.Array, depth: int, log_signature_type: Literal["expanded", "lyndon"]) -> jax.Array:
+@partial(jax.jit, static_argnames=["depth", "log_signature_type", "stream"])
+def get_log_signature(
+    path: jax.Array,
+    depth: int,
+    log_signature_type: Literal["expanded", "lyndon"],
+    stream: bool = False,
+) -> jax.Array:
     """
     Compute the log signature of a path.
     """
-    log_signature = path_log_signature(path, depth, log_signature_type=log_signature_type)
-    return flatten_signature(log_signature, stream=False)
+    log_signature = path_log_signature(path, depth, log_signature_type=log_signature_type, stream=stream)
+    return flatten_signature(log_signature, stream=stream)
 
 
 def flatten_signature(signature: list[jax.Array], stream: bool = False) -> jax.Array:

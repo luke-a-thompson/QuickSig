@@ -4,10 +4,9 @@ import numpy as np
 from quicksig import get_signature, get_log_signature
 from quicksig.get_signature_dim import get_signature_dim, get_log_signature_dim
 import pytest
-from tests.test_helpers import generate_scalar_path, _linear_path
+from tests.test_helpers import generate_scalar_path, linear_path
 import signax
 
-# Rename TEST_KEY to _test_key
 _test_key = jax.random.PRNGKey(42)
 
 
@@ -67,7 +66,7 @@ def test_linear_path_exactness() -> None:
     delta_x = -0.08840573
     num_steps = 20
     depth = 3
-    path = _linear_path(0.0, delta_x, num_steps=num_steps, channels=1)
+    path = linear_path(0.0, delta_x, num_steps=num_steps, channels=1)
     sig = get_signature(path, depth=depth)
 
     # Ground‑truth closed form
@@ -123,23 +122,25 @@ def test_quadratic_path_signature(a: float, b: float) -> None:
 
 @pytest.mark.parametrize("n_features", [2, 3, 4])
 @pytest.mark.parametrize("depth", [2, 3])
-def test_quicksig_signax_equivalence(n_features: int, depth: int) -> None:
+@pytest.mark.parametrize("stream", [True, False])
+def test_quicksig_signax_equivalence(n_features: int, depth: int, stream: bool) -> None:
     """
     Test that the signature computed by QuickSig and Signax are equivalent.
     """
     path = generate_scalar_path(_test_key, n_features=n_features)
-    quicksig_sig = get_signature(path, depth=depth)
-    signax_sig = signax.signature(path, depth=depth)
+    quicksig_sig = get_signature(path, depth=depth, stream=stream)
+    signax_sig = signax.signature(path, depth=depth, stream=stream)
     np.testing.assert_allclose(np.asarray(quicksig_sig), np.asarray(signax_sig), atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.parametrize("n_features", [2, 3, 4])
 @pytest.mark.parametrize("depth", [2, 3])
-def test_quicksig_signax_equivalence_log_signature(n_features: int, depth: int) -> None:
+@pytest.mark.parametrize("stream", [True, False])
+def test_quicksig_signax_equivalence_log_signature(n_features: int, depth: int, stream: bool) -> None:
     """
     Test that the log signature computed by QuickSig and Signax are equivalent.
     """
     path = generate_scalar_path(_test_key, n_features=n_features)
-    quicksig_sig = get_log_signature(path, depth=depth, log_signature_type="lyndon")
-    signax_sig = signax.logsignature(path, depth=depth)
+    quicksig_sig = get_log_signature(path, depth=depth, log_signature_type="lyndon", stream=stream)
+    signax_sig = signax.logsignature(path, depth=depth, stream=stream)
     np.testing.assert_allclose(np.asarray(quicksig_sig), np.asarray(signax_sig), atol=1e-5, rtol=1e-5)

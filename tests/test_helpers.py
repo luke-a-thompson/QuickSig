@@ -48,7 +48,8 @@ def generate_scalar_path(key: jax.Array, num_timesteps: int = 100, mu: float = 0
 
     return values
 
-def _linear_path(start: float, stop: float, num_steps: int, channels: int) -> jax.Array:
+
+def linear_path(start: float, stop: float, num_steps: int, channels: int) -> jax.Array:
     """Deterministic straight-line path for ground-truth tests."""
     t = jnp.linspace(start, stop, num_steps).reshape(-1, 1)  # (steps, 1)
     vals = jnp.repeat(t, channels, axis=1)  # (steps, channels)
