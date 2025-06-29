@@ -3,30 +3,21 @@ import jax.numpy as jnp
 
 
 def tensor_product(x: jax.Array, y: jax.Array) -> jax.Array:
-    """GPU-optimized tensor product.
-    Computes an outer product of the trailing dimensions of x and y.
-    For example, if x is (..., M) and y is (..., N), result is (..., M, N).
-    If x is (..., M, K) and y is (..., N), result is (..., M, K, N).
+    """Computes the outer product of two tensors.
+
+    This is a pure feature-space operation. It does not align batch dimensions.
+    For inputs `x` with shape `A` and `y` with shape `B`, the result has shape `A + B`.
 
     Args:
-        x (jax.Array): Shape (..., d1) or (..., d1, d2, ...)
-        y (jax.Array): Shape (..., d_final)
+        x (jax.Array): The first tensor.
+        y (jax.Array): The second tensor.
 
     Returns:
         jax.Array: The tensor product of x and y.
     """
-    x_ndim_orig = x.ndim
-    y_ndim_orig = y.ndim
-
-    # Expand x by y's feature dimensions
-    # If y is (B, N), y_ndim_orig-1 = 1. x becomes (..., d1, 1)
-    # If y is (B, N, K), y_ndim_orig-1 = 2. x becomes (..., d1, 1, 1)
-    for _ in range(y_ndim_orig):
-        x = jnp.expand_dims(x, axis=-1)
-    for _ in range(x_ndim_orig):
-        y = jnp.expand_dims(y, axis=0)
-
-    return x * y
+    x_bcast = jnp.reshape(x, x.shape + (1,) * y.ndim)  # Make col vector
+    y_bcast = jnp.reshape(y, (1,) * x.ndim + y.shape)  # Make row vector
+    return x_bcast * y_bcast
 
 
 def seq_tensor_product(x: jax.Array, y: jax.Array) -> jax.Array:
@@ -109,7 +100,7 @@ def cauchy_prod(x: list[jax.Array], y: list[jax.Array], depth: int, S_levels_sha
     return out
 
 
-def tensor_log(sig_levels: list[jax.Array], n_features: int) -> list[jax.Array]:
+def tensor_log(sig_levels: list[jax.Array], n_features: int, flatten_output: bool = True) -> list[jax.Array]:
     """Compute the log of a tensor."""
     assert isinstance(sig_levels, list), "sig_levels must be a list of jax.Array signatures per level"
 
@@ -121,11 +112,13 @@ def tensor_log(sig_levels: list[jax.Array], n_features: int) -> list[jax.Array]:
 
     for n in range(1, len(sig_levels) + 1):
         coef = (-1.0) ** (n - 1) / n  # $$c_k = (-1)^{k-1}/k$$
-        # $$L_k \leftarrow L_k + \frac{(-1)^{k-1}}{k} \cdot T^{\otimes k}$$, $$L_k$$ this accumulates for the sum
+        # $$L_k \leftarrow L_k + \tfrac{(-1)^{k-1}}{k} \cdot T^{\otimes k}$$, $$L_k$$ this accumulates for the sum
         result = [res + coef * p for res, p in zip(result, tensor_exp_lvl)]
         if n < len(sig_levels):  # $$S^{⊗(n+1)}$$
             # Math note: We must use the Cauchy product because the atomic tensor product is not defined for lists of signatures.
             tensor_exp_lvl = cauchy_prod(tensor_exp_lvl, sig_levels, len(sig_levels), sig_levels)
 
     # --- flatten ------------------------------------
-    return [lvl.reshape(-1) for lvl in result]
+    if flatten_output:
+        return [lvl.reshape(-1) for lvl in result]
+    return result
