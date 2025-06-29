@@ -28,6 +28,8 @@ def path_signature(path: jax.Array, depth: int, stream: bool) -> list[jax.Array]
             shape $$(\;\text{seq\_len}-1,\;\sum_{p=1}^{m}D_p).$$
     """
     assert depth > 0 and isinstance(depth, int), "Depth must be a positive integer."
+    if path.ndim == 1:
+        raise ValueError(f"QuickSig requires 2D arrays of shape [seq_len, n_features]. Got shape: {path.shape}. \n Consider using path.reshape(-1, 1).")
     seq_len, n_features = path.shape
     assert seq_len > 1, "Sequence length must be greater than 1."
 
