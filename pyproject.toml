@@ -1,6 +1,6 @@
 [project]
 name = "quicksig"
-version = "0.1.0"
+version = "0.1.1"
 description = "A fast path signature and log signature computation library using JAX."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -32,7 +32,10 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-dependencies = ["jax>=0.6.0"]
+dependencies = [
+    "fbm>=0.3.0",
+    "jax>=0.6.0",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/yourusername/quicksig"
