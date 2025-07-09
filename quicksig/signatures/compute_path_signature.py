@@ -1,9 +1,33 @@
 import jax
 import jax.numpy as jnp
 from quicksig.tensor_ops import restricted_tensor_exp, seq_tensor_product
+from typing import Literal, overload
+from quicksig.signatures.signature_types import Signature
+from functools import partial
 
 
-def path_signature(path: jax.Array, depth: int, stream: bool) -> list[jax.Array]:
+@overload
+def compute_path_signature(
+    path: jax.Array,
+    depth: int,
+    mode: Literal["full"],
+) -> Signature: ...
+
+
+@overload
+def compute_path_signature(
+    path: jax.Array,
+    depth: int,
+    mode: Literal["stream", "incremental"],
+) -> list[Signature]: ...
+
+
+@partial(jax.jit, static_argnames=["depth", "mode"])
+def compute_path_signature(
+    path: jax.Array,
+    depth: int,
+    mode: Literal["full", "stream", "incremental"],
+) -> Signature | list[Signature]:
     r"""Computes the truncated path signature
     $$\operatorname{Sig}_{0,T}(X)=\bigl(S^{(1)}_{0,T},\,S^{(2)}_{0,T},\ldots,S^{(m)}_{0,T}\bigr),\qquad m=\text{depth}.$$
     The constant term $$S^{(0)}_{0,T}=1$$ is omitted.
@@ -36,16 +60,21 @@ def path_signature(path: jax.Array, depth: int, stream: bool) -> list[jax.Array]
     # Path increments: $$\Delta X_i = X_i - X_{i-1}$$ for $$i = 1, \ldots, N$$
     path_increments = path[1:, :] - path[:-1, :]
 
+    if mode == "incremental":
+        return [
+            Signature(
+                signature=restricted_tensor_exp(path_increments[i, :], depth=depth),
+                interval=(i, i + 1),
+                ambient_dimension=n_features,
+                depth=depth,
+            )
+            for i in range(path_increments.shape[0])
+        ]
+
     # Level 1 signature $$S^1_{0,t} = \textstyle{\sum_{i=1}^{t}} \Delta X_i$$
     # E.g. t=5 is cumsum 0 to 5
     depth_1_stream = jnp.cumsum(path_increments, axis=0)
     incremental_signatures = [depth_1_stream]
-
-    if depth == 1:
-        if stream:
-            return [depth_1_stream]
-        else:
-            return [depth_1_stream[-1, :]]
 
     # Precompute $$S^k_{0,1} = (\Delta X_1)^{\otimes k}$$ for $$k = 1, \ldots, \text{depth}$$, len = k
     first_inc_tensor_exp_terms = restricted_tensor_exp(path_increments[0, :], depth=depth)
@@ -81,7 +110,22 @@ def path_signature(path: jax.Array, depth: int, stream: bool) -> list[jax.Array]
         # The depth-k signature up to time t
         incremental_signatures.append(jnp.cumsum(sig_accm, axis=0))
 
-    if not stream:
-        return [jnp.reshape(c[-1, :], (n_features ** (1 + idx))) for idx, c in enumerate(incremental_signatures)]
+    if mode == "full":
+        return Signature(
+            signature=[jnp.reshape(c[-1, :], (n_features ** (1 + idx))) for idx, c in enumerate(incremental_signatures)],
+            interval=(0, path.shape[0]),
+            ambient_dimension=n_features,
+            depth=depth,
+        )
+    elif mode == "stream":
+        return [
+            Signature(
+                signature=[term[i, :] for term in incremental_signatures],
+                interval=(0, i + 1),
+                ambient_dimension=n_features,
+                depth=depth,
+            )
+            for i in range(path_increments.shape[0])
+        ]
     else:
-        return [jnp.reshape(r, (seq_len - 1, n_features ** (1 + idx))) for idx, r in enumerate(incremental_signatures)]
+        raise ValueError(f"Invalid mode: {mode}")

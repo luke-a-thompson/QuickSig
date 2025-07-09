@@ -1,19 +1,39 @@
 from functools import partial
 import jax
 from quicksig.tensor_ops import tensor_log
-from quicksig.path_signature import path_signature
+from quicksig.signatures.compute_path_signature import compute_path_signature
+from quicksig.signatures.signature_types import Signature, LogSignature
 
-from typing import Literal
+from typing import Literal, overload
 from collections import defaultdict
 import jax.numpy as jnp
 
 
-def path_log_signature(
+@overload
+def compute_log_signature(
     path: jax.Array,
     depth: int,
-    log_signature_type: Literal["expanded", "lyndon"],
-    stream: bool,
-) -> list[jax.Array]:
+    log_signature_type: Literal["Tensor words", "Lyndon words"],
+    mode: Literal["full"],
+) -> LogSignature: ...
+
+
+@overload
+def compute_log_signature(
+    path: jax.Array,
+    depth: int,
+    log_signature_type: Literal["Tensor words", "Lyndon words"],
+    mode: Literal["stream", "incremental"],
+) -> list[LogSignature]: ...
+
+
+@partial(jax.jit, static_argnames=["depth", "log_signature_type", "mode"])
+def compute_log_signature(
+    path: jax.Array,
+    depth: int,
+    log_signature_type: Literal["Tensor words", "Lyndon words"],
+    mode: Literal["full", "stream", "incremental"],
+) -> LogSignature | list[LogSignature]:
     """
     Compute the log signature of a path.
 
@@ -21,7 +41,10 @@ def path_log_signature(
         path: A JAX array of shape (seq_len, n_features).
         depth: The depth of the log signature.
         log_signature_type: Type of log signature, "expanded" or "lyndon".
-        stream: If True, returns a stream of log signatures.
+        mode:
+            If "stream", returns a stream of log signatures.
+            If "incremental", returns the log signature of each increment.
+            If "full", returns the full log signature.
 
     Returns:
         A list of JAX arrays representing the log signature.
@@ -29,25 +52,30 @@ def path_log_signature(
     """
 
     n_features = path.shape[-1]
-    signature: list[jax.Array] = path_signature(path, depth, stream=stream)
+    signature_result = compute_path_signature(path, depth, mode=mode)
 
-    if log_signature_type == "expanded":
-        if stream:
-            return jax.vmap(lambda sig: tensor_log(sig, n_features))(signature)
+    def _get_log_signature(signature: Signature) -> LogSignature:
+        if log_signature_type == "Tensor words":
+            log_sig_tensors = tensor_log(signature.signature, n_features)
+        elif log_signature_type == "Lyndon words":
+            indices = duval_generator(depth, n_features)
+            log_signature_expanded = tensor_log(signature.signature, n_features, flatten_output=False)
+            log_sig_tensors = compress(log_signature_expanded, indices)
         else:
-            return tensor_log(signature, n_features)
+            raise ValueError(f"Invalid log signature type: {log_signature_type}")
 
-    elif log_signature_type == "lyndon":
-        indices = duval_generator(depth, n_features)
+        return LogSignature(
+            signature=log_sig_tensors,
+            interval=signature.interval,
+            ambient_dimension=n_features,
+            depth=depth,
+            basis_name=log_signature_type,
+        )
 
-        if stream:
-            return jax.vmap(lambda sig: compress(tensor_log(sig, n_features, flatten_output=False), indices))(signature)
-        else:
-            log_signature = tensor_log(signature, n_features, flatten_output=False)
-            return compress(log_signature, indices)
-
+    if isinstance(signature_result, list):
+        return [_get_log_signature(sig) for sig in signature_result]
     else:
-        raise ValueError(f"Invalid log signature type: {log_signature_type}")
+        return _get_log_signature(signature_result)
 
 
 @partial(jax.jit, static_argnames=["depth", "dim"])
@@ -160,22 +188,3 @@ def compress(expanded_terms: list[jax.Array], lyndon_indices: list[jax.Array]) -
         result_compressed.append(compressed_term)
 
     return result_compressed
-
-
-if __name__ == "__main__":
-    from quicksig import get_signature, get_log_signature
-
-    key = jax.random.PRNGKey(0)
-    path = jax.random.normal(key, shape=(5, 100, 3))  # Stream
-
-    print("Signature stream shape:")
-    signature: jax.Array = jax.vmap(get_signature, in_axes=(0, None, None))(path, 4, True)
-    print(signature.shape)
-
-    print("\nLog signature stream shape (expanded):")
-    log_signature_expanded: jax.Array = jax.vmap(get_log_signature, in_axes=(0, None, None, None))(path, 4, "lyndon", False)
-    print(log_signature_expanded.shape)
-
-    print("\nLog signature stream shape (lyndon):")
-    log_signature_lyndon: jax.Array = jax.vmap(get_log_signature, in_axes=(0, None, None, None))(path, 4, "lyndon", True)
-    print(log_signature_lyndon.shape)

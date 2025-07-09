@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from quicksig.tensor_ops import restricted_tensor_exp, tensor_log, tensor_product, seq_tensor_product, cauchy_prod
+from quicksig.tensor_ops import restricted_tensor_exp, tensor_log, tensor_product, seq_tensor_product, cauchy_convolution
 
 
 def test_batch_log_inverse_of_exp() -> None:
@@ -326,7 +326,7 @@ def test_batch_cauchy_prod_logic(x_terms_defs: list[tuple[int, ...]], y_terms_de
     #   - y_terms: each tensor in list is unstacked at axis 0
     #   - depth: static
     #   - S_levels_shapes: each tensor in list is unstacked at axis 0
-    result_terms = jax.vmap(cauchy_prod, in_axes=(0, 0, None, 0))(x_terms, y_terms, depth, S_levels_shapes)
+    result_terms = jax.vmap(cauchy_convolution, in_axes=(0, 0, None, 0))(x_terms, y_terms, depth, S_levels_shapes)
 
     assert len(result_terms) == depth
     for i in range(depth):
@@ -382,4 +382,6 @@ def test_batch_tensor_log_specific_depths(depth: int, n_features: int) -> None:
     assert len(log_output_terms_batched) == depth, f"Expected {depth} terms, got {len(log_output_terms_batched)}"
     for i, (output_term, expected_term) in enumerate(zip(log_output_terms_batched, expected_log_terms_batched)):
         assert output_term.shape == expected_term.shape, f"Term {i} shape mismatch: got {output_term.shape}, expected {expected_term.shape}"
-        assert jnp.allclose(output_term, expected_term, atol=1e-5), f"Term {i} value mismatch for depth={depth}, n_features={n_features}.\nGot:\n{output_term}\nExpected:\n{expected_term}"
+        assert jnp.allclose(
+            output_term, expected_term, atol=1e-5
+        ), f"Term {i} value mismatch for depth={depth}, n_features={n_features}.\nGot:\n{output_term}\nExpected:\n{expected_term}"

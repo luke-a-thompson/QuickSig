@@ -1,9 +1,39 @@
 import jax
 import jax.numpy as jnp
 from jax import lax
+import pytest
+
+_test_key = jax.random.PRNGKey(42)
 
 
-def generate_scalar_path(key: jax.Array, num_timesteps: int = 100, mu: float = 0.5, sigma: float = 0.3, n_features: int = 1) -> jax.Array:
+@pytest.fixture
+def scalar_path_fixture(request: pytest.FixtureRequest) -> jax.Array:
+    """Generates a path with a given number of channels and timesteps."""
+    n_features, num_timesteps = request.param
+    key, subkey = jax.random.split(_test_key)
+    return generate_scalar_path(subkey, n_features, num_timesteps)
+
+
+@pytest.fixture
+def linear_path_fixture(request: pytest.FixtureRequest) -> jax.Array:
+    """Generates a linear path with a given number of channels and timesteps."""
+    n_features, num_timesteps = request.param
+    return generate_linear_path(n_features, num_timesteps)
+
+
+@pytest.mark.parametrize("n_features", [1, 2, 3])
+@pytest.mark.parametrize("num_timesteps", [10, 100])
+def test_gbm_shape_and_positive(num_timesteps: int, n_features: int) -> None:
+    """GBM path has expected shape and stays strictly positive."""
+    global _test_key
+    _test_key, subkey = jax.random.split(_test_key)
+
+    path = generate_scalar_path(subkey, n_features, num_timesteps)
+    assert path.shape == (num_timesteps, n_features)
+    assert jnp.all(path > 0.0), "GBM should remain positive"
+
+
+def generate_scalar_path(key: jax.Array, n_features: int, num_timesteps: int, mu: float = 0.5, sigma: float = 0.3) -> jax.Array:
     """
     Generate a multi-dimensional path following geometric Brownian motion (GBM).
     Uses JAX for random number generation and path computation.
@@ -49,8 +79,8 @@ def generate_scalar_path(key: jax.Array, num_timesteps: int = 100, mu: float = 0
     return values
 
 
-def linear_path(start: float, stop: float, num_steps: int, channels: int) -> jax.Array:
+def generate_linear_path(n_features: int, start: float = 0.0, stop: float = 1.0, num_timesteps: int = 100) -> jax.Array:
     """Deterministic straight-line path for ground-truth tests."""
-    t = jnp.linspace(start, stop, num_steps).reshape(-1, 1)  # (steps, 1)
-    vals = jnp.repeat(t, channels, axis=1)  # (steps, channels)
+    t = jnp.linspace(start, stop, num_timesteps).reshape(-1, 1)  # (steps, 1)
+    vals = jnp.repeat(t, n_features, axis=1)  # (steps, n_features)  # (steps, n_features)
     return vals

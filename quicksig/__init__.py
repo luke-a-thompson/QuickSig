@@ -9,8 +9,7 @@ Main functions:
     get_log_signature: Compute log signatures
 """
 
-from .get_signatures import get_signature, get_log_signature
-from .get_signature_dim import get_signature_dim, get_log_signature_dim
+from .signatures import get_signature_dim, get_log_signature_dim
 
 __version__ = "0.1.0"
 __author__ = "Luke Thompson"

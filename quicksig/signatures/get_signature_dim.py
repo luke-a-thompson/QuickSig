@@ -21,7 +21,7 @@ def get_signature_dim(depth: int, dim: int, flatten: bool = True) -> int | list[
         return [dim**k for k in range(1, depth + 1)]
 
 
-def get_prime_factorization(n: int) -> dict[int, int]:
+def _get_prime_factorization(n: int) -> dict[int, int]:
     factors: dict[int, int] = {}
     d = 2
     temp_n = n
@@ -35,17 +35,17 @@ def get_prime_factorization(n: int) -> dict[int, int]:
     return factors
 
 
-def mobius_mu(n: int) -> int:
+def _mobius_mu(n: int) -> int:
     if n == 1:
         return 1
-    prime_factors = get_prime_factorization(n)
+    prime_factors = _get_prime_factorization(n)
     for p in prime_factors:
         if prime_factors[p] > 1:
             return 0  # Has a squared prime factor
     return (-1) ** len(prime_factors)  # Product of k distinct primes
 
 
-def get_divisors(n: int) -> list[int]:
+def _get_divisors(n: int) -> list[int]:
     divs = set()
     for i in range(1, int(math.sqrt(n)) + 1):
         if n % i == 0:
@@ -60,10 +60,10 @@ def num_lyndon_words_of_length_k(num_symbols: int, length: int) -> int:
     if num_symbols == 1:  # Alphabet has only one symbol e.g. "a"
         return 1 if length == 1 else 0  # Only "a" is a Lyndon word, "aa", "aaa" are not.
 
-    divs = get_divisors(length)
+    divs = _get_divisors(length)
     total_sum = 0
     for d in divs:
-        total_sum += int(mobius_mu(length // d) * (num_symbols**d))
+        total_sum += int(_mobius_mu(length // d) * (num_symbols**d))
     return total_sum // length
 
 
@@ -82,10 +82,3 @@ def get_log_signature_dim(depth: int, dim: int, flatten: bool = True) -> int | l
         return sum(num_lyndon_words_of_length_k(dim, k) for k in range(1, depth + 1))
     else:
         return [num_lyndon_words_of_length_k(dim, k) for k in range(1, depth + 1)]
-
-
-if __name__ == "__main__":
-    sig_dim = get_signature_dim(5, 2)
-    print(sig_dim)
-    log_sig_dim = get_log_signature_dim(5, 2)
-    print(log_sig_dim)

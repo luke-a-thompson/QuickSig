@@ -3,7 +3,12 @@ import jax.numpy as jnp
 from typing import Callable
 
 
-def augment_path(path: jax.Array, augmentations: list[Callable[[jax.Array], jax.Array]], window_depth: int | None = None, window_size: int | None = None) -> jax.Array | list[jax.Array]:
+def augment_path(
+    path: jax.Array,
+    augmentations: list[Callable[[jax.Array], jax.Array]],
+    window_depth: int | None = None,
+    window_size: int | None = None,
+) -> jax.Array | list[jax.Array]:
     """Augment the path with a list of augmentations."""
     if dyadic_windower in augmentations and window_depth is None:
         raise ValueError("window_depth must be provided if dyadic_windower is in augmentations")

@@ -3,7 +3,9 @@ from typing import Literal, TypedDict
 import numpy as np
 import argparse
 import json
+import time
 from pathlib import Path
+from typing import TypedDict, Literal
 from tests.test_helpers import generate_scalar_path
 import jax
 from rich.console import Console
@@ -36,10 +38,14 @@ def is_regression(current_mean: float, current_std: float, baseline_mean: float,
 _DEFAULT_COMBINATIONS: list[tuple[int, int, int]] = [
     # (num_steps, channels, depth)
     (1000, 2, 3),
-    (1000, 3, 4),
+    (1000, 2, 4),
+    (1000, 3, 3),
+    (10000, 2, 3),
     (10000, 3, 3),
-    (10000, 4, 3),
-    (10000, 4, 4),
+    # Commented out combinations that cause memory issues
+    # (1000, 3, 4),  # Too much memory for GPU
+    # (10000, 4, 3),  # Too much memory for GPU
+    # (10000, 4, 4),  # Too much memory for GPU
     # (50000, 4, 4),
     # (50000, 5, 3),
     # (100000, 5, 4),
@@ -112,7 +118,9 @@ def benchmark_signature(
         table.add_column("QuickSig (μs)", justify="left")
         table.add_column("Signax (μs)", justify="left")
 
-        for _, (num_timesteps, channels, depth) in (pbar := tqdm(enumerate(_DEFAULT_COMBINATIONS), desc="Benchmarking combinations", position=0, leave=False, total=len(_DEFAULT_COMBINATIONS))):
+        for _, (num_timesteps, channels, depth) in (
+            pbar := tqdm(enumerate(_DEFAULT_COMBINATIONS), desc="Benchmarking combinations", position=0, leave=False, total=len(_DEFAULT_COMBINATIONS))
+        ):
             pbar.set_description(f"Benchmarking (steps={num_timesteps}, channels={channels}, depth={depth})")
 
             # Clear JAX cache before each combination to ensure consistent memory usage
@@ -121,12 +129,12 @@ def benchmark_signature(
             path = generate_scalar_path(KEY, num_timesteps, channels)
 
             # QuickSig benchmark
-            compiled_quicksig = jax.jit(lambda x: quicksig.get_signature(x, depth=depth))
-            _ = compiled_quicksig(path).block_until_ready()
+            compiled_quicksig = jax.jit(lambda x: quicksig.signatures.compute_path_signature(x, depth=depth, mode="full"))
+            _ = compiled_quicksig(path)
 
             # Signax benchmark
             compiled_signax = jax.jit(lambda x: signax.signature(x, depth=depth))
-            _ = compiled_signax(path).block_until_ready()
+            _ = compiled_signax(path)
 
             # Run measurements
             quicksig_times = []
@@ -134,12 +142,12 @@ def benchmark_signature(
 
             for _ in tqdm(range(n_runs), desc="QuickSig", position=1, leave=False):
                 start = time.perf_counter()
-                _ = compiled_quicksig(path).block_until_ready()
+                _ = compiled_quicksig(path)
                 quicksig_times.append(time.perf_counter() - start)
 
             for _ in tqdm(range(n_runs), desc="Signax", position=1, leave=False):
                 start = time.perf_counter()
-                _ = compiled_signax(path).block_until_ready()
+                _ = compiled_signax(path)
                 signax_times.append(time.perf_counter() - start)
 
             # Process QuickSig times

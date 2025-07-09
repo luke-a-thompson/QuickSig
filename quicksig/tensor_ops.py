@@ -70,7 +70,7 @@ def restricted_tensor_exp(x: jax.Array, depth: int) -> list[jax.Array]:
     return terms
 
 
-def cauchy_prod(x: list[jax.Array], y: list[jax.Array], depth: int, S_levels_shapes: list[jax.Array]) -> list[jax.Array]:
+def cauchy_convolution(x: list[jax.Array], y: list[jax.Array], depth: int, S_levels_shapes: list[jax.Array]) -> list[jax.Array]:
     r"""
     Computes the degree-m component of the graded tensor-concatenation product
     or Cauchy convolution product in the truncated free tensor algebra.
@@ -116,7 +116,7 @@ def tensor_log(sig_levels: list[jax.Array], n_features: int, flatten_output: boo
         result = [res + coef * p for res, p in zip(result, tensor_exp_lvl)]
         if n < len(sig_levels):  # $$S^{⊗(n+1)}$$
             # Math note: We must use the Cauchy product because the atomic tensor product is not defined for lists of signatures.
-            tensor_exp_lvl = cauchy_prod(tensor_exp_lvl, sig_levels, len(sig_levels), sig_levels)
+            tensor_exp_lvl = cauchy_convolution(tensor_exp_lvl, sig_levels, len(sig_levels), sig_levels)
 
     # --- flatten ------------------------------------
     if flatten_output:
