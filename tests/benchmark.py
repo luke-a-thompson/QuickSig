@@ -42,10 +42,9 @@ _DEFAULT_COMBINATIONS: list[tuple[int, int, int]] = [
     (1000, 3, 3),
     (10000, 2, 3),
     (10000, 3, 3),
-    # Commented out combinations that cause memory issues
-    # (1000, 3, 4),  # Too much memory for GPU
-    # (10000, 4, 3),  # Too much memory for GPU
-    # (10000, 4, 4),  # Too much memory for GPU
+    # (1000, 3, 4),
+    # (10000, 4, 3),
+    # (10000, 4, 4),
     # (50000, 4, 4),
     # (50000, 5, 3),
     # (100000, 5, 4),
@@ -129,7 +128,7 @@ def benchmark_signature(
             path = generate_scalar_path(KEY, num_timesteps, channels)
 
             # QuickSig benchmark
-            compiled_quicksig = jax.jit(lambda x: quicksig.signatures.compute_path_signature(x, depth=depth, mode="full"))
+            compiled_quicksig = jax.jit(lambda x: quicksig.signatures.compute_path_signature(x, depth=depth, mode="full").flatten())
             _ = compiled_quicksig(path)
 
             # Signax benchmark
@@ -142,12 +141,12 @@ def benchmark_signature(
 
             for _ in tqdm(range(n_runs), desc="QuickSig", position=1, leave=False):
                 start = time.perf_counter()
-                _ = compiled_quicksig(path)
+                compiled_quicksig(path).block_until_ready()
                 quicksig_times.append(time.perf_counter() - start)
 
             for _ in tqdm(range(n_runs), desc="Signax", position=1, leave=False):
                 start = time.perf_counter()
-                _ = compiled_signax(path)
+                compiled_signax(path).block_until_ready()
                 signax_times.append(time.perf_counter() - start)
 
             # Process QuickSig times
@@ -203,5 +202,5 @@ if __name__ == "__main__":
     parser.add_argument("--device", choices=["cpu", "gpu"], default="gpu", help="JAX device to use for computations")
     args = parser.parse_args()
 
-    benchmark_signature(jax_device="cpu", n_runs=100, check_regression=args.check_regression, update_baseline=args.update_baseline)
+    # benchmark_signature(jax_device="cpu", n_runs=100, check_regression=args.check_regression, update_baseline=args.update_baseline)
     benchmark_signature(jax_device="gpu", n_runs=100, check_regression=args.check_regression, update_baseline=args.update_baseline)

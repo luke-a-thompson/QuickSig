@@ -111,8 +111,9 @@ def compute_path_signature(
         incremental_signatures.append(jnp.cumsum(sig_accm, axis=0))
 
     if mode == "full":
+        final_levels = [jnp.array(c[-1]) for c in incremental_signatures]
         return Signature(
-            signature=[jnp.reshape(c[-1, :], (n_features ** (1 + idx))) for idx, c in enumerate(incremental_signatures)],
+            signature=final_levels,
             interval=(0, path.shape[0]),
             ambient_dimension=n_features,
             depth=depth,
@@ -129,3 +130,4 @@ def compute_path_signature(
         ]
     else:
         raise ValueError(f"Invalid mode: {mode}")
+

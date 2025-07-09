@@ -50,6 +50,7 @@ dev = [
     "lovely-jax>=0.1.3",
     "pytest>=8.3.5",
     "pytest-cov>=6.1.1",
+    "pytest-timeout>=2.3.1",
     "mypy>=1.8.0",
     "black>=24.2.0",
     "matplotlib>=3.10.1",
