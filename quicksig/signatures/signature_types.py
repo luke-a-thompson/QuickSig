@@ -58,7 +58,7 @@ class LogSignature(BaseSignature):
     basis_name: Literal["Tensor words", "Lyndon words"]
 
     def __matmul__(self, other: "LogSignature") -> "LogSignature":
-        raise NotImplementedError("Matmul is not implemented for LogSignature.")
+        raise NotImplementedError("Product of log signatures is not defined.")
 
 
 jax.tree_util.register_pytree_node_class(Signature)

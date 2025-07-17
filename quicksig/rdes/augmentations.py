@@ -1,34 +1,62 @@
+import functools
 import jax
 import jax.numpy as jnp
-from typing import Callable
+from typing import Any, Callable
 
 
 def augment_path(
     path: jax.Array,
-    augmentations: list[Callable[[jax.Array], jax.Array]],
-    window_depth: int | None = None,
-    window_size: int | None = None,
-) -> jax.Array | list[jax.Array]:
-    """Augment the path with a list of augmentations."""
-    if dyadic_windower in augmentations and window_depth is None:
-        raise ValueError("window_depth must be provided if dyadic_windower is in augmentations")
-    if dyadic_windower in augmentations and window_size is None:
-        raise ValueError("window_size must be provided if dyadic_windower is in augmentations")
-    windower_count = sum(1 for aug in augmentations if aug in [sliding_windower, dyadic_windower])
-    if windower_count > 1:
-        raise ValueError("Only one windower (sliding_windower or dyadic_windower) can be used at a time")
+    augmentations: list[Callable[[jax.Array], Any]],
+) -> Any:
+    """Augment the path with a list of augmentations.
 
-    if basepoint_augmentation in augmentations:
-        path = basepoint_augmentation(path)
+    Path augmentations (`basepoint_augmentation`, `time_augmentation`) are
+    applied first.
 
-    if time_augmentation in augmentations:
-        path = time_augmentation(path)
+    Windowing augmentations (`sliding_windower`, `dyadic_windower`) are
+    applied after path augmentations.
+    - If only one windower is provided, it is applied to the path.
+    - If both `sliding_windower` and `dyadic_windower` are provided,
+      `sliding_windower` is applied first, and then `dyadic_windower`
+      is applied to each of the resulting sliding windows.
 
-    if dyadic_windower in augmentations and window_depth is not None:
-        path = dyadic_windower(path, window_depth, window_size)
+    Args:
+        path: The input path as a `jax.Array`.
+        augmentations: A list of callables to apply to the path. For augmentations
+            that require parameters (e.g., `sliding_windower`), use
+            `functools.partial` to create the callable.
 
-    if sliding_windower in augmentations and window_size is not None:
-        path = sliding_windower(path, window_size)
+    Returns:
+        The augmented path. The return type depends on the augmentations.
+    """
+    path_augmentations = []
+    sliding_windower_aug = None
+    dyadic_windower_aug = None
+
+    for aug in augmentations:
+        # Check if the augmentation is a windower, handling partials
+        func_to_check = aug.func if isinstance(aug, functools.partial) else aug
+        if func_to_check is non_overlapping_windower:
+            sliding_windower_aug = aug
+        elif func_to_check is dyadic_windower:
+            dyadic_windower_aug = aug
+        elif func_to_check in [basepoint_augmentation, time_augmentation, lead_lag_augmentation]:
+            path_augmentations.append(aug)
+        else:
+            raise ValueError(f"Unknown augmentation: {func_to_check}")
+
+    # Apply non-windower augmentations first
+    for aug in path_augmentations:
+        path = aug(path)
+
+    # Apply windowers
+    if sliding_windower_aug and dyadic_windower_aug:
+        sliding_windows = sliding_windower_aug(path)
+        return [dyadic_windower_aug(window) for window in sliding_windows]
+    elif sliding_windower_aug:
+        return sliding_windower_aug(path)
+    elif dyadic_windower_aug:
+        return dyadic_windower_aug(path)
 
     return path
 
@@ -92,7 +120,7 @@ def time_augmentation(path: jax.Array) -> jax.Array:
     return augmented_path
 
 
-def sliding_windower(path: jax.Array, window_size: int) -> list[jax.Array]:
+def non_overlapping_windower(path: jax.Array, window_size: int) -> list[jax.Array]:
     r"""Create non-overlapping windows over a path using efficient reshape operations.
 
     This function creates non-overlapping windows of specified size over the input path.
@@ -108,9 +136,9 @@ def sliding_windower(path: jax.Array, window_size: int) -> list[jax.Array]:
 
     Examples:
         >>> import jax.numpy as jnp
-        >>> from quicksig.augmentations import sliding_windower
+        >>> from quicksig.augmentations import non_overlapping_windower
         >>> path = jnp.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]])
-        >>> windows = sliding_windower(path, 2)
+        >>> windows = non_overlapping_windower(path, 2)
         >>> [w.shape for w in windows]
         [(2, 2), (2, 2), (1, 2)]
     """
@@ -139,7 +167,7 @@ def sliding_windower(path: jax.Array, window_size: int) -> list[jax.Array]:
     return windows
 
 
-def dyadic_windower(path: jax.Array, window_depth: int, window_size: int | None = None) -> list[tuple[jax.Array, jax.Array]]:
+def dyadic_windower(path: jax.Array, window_depth: int) -> list[tuple[jax.Array, jax.Array]]:
     r"""Create dyadic windows over a path.
 
     This function divides the path into a series of dyadic windows.
@@ -204,6 +232,42 @@ def dyadic_windower(path: jax.Array, window_depth: int, window_size: int | None 
     return all_windows_info
 
 
+def lead_lag_augmentation(path: jax.Array) -> jax.Array:
+    r"""Augment the path with a lead-lag transformation.
+
+    This function creates a lead-lag transformation of the path where each point
+    contains both the current value (lead) and the previous value (lag).
+    This doubles the dimension of the path.
+
+    Args:
+        path: Input path array of shape `(n_points, n_dims)`.
+
+    Returns:
+        Augmented path array of shape `(n_points, 2 * n_dims)` where each
+        point contains both lead and lag components.
+
+    Examples:
+        >>> import jax.numpy as jnp
+        >>> from quicksig.rdes.augmentations import lead_lag_augmentation
+        >>> path = jnp.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        >>> lead_lag_augmentation(path)
+        Array([[1., 2., 1., 2.],
+               [3., 4., 1., 2.],
+               [5., 6., 3., 4.]], dtype=float32)
+    """
+    assert path.ndim == 2
+    n_points, n_dims = path.shape
+
+    # Create lead (current) and lag (previous) components
+    lead = path  # Current values
+    lag = jnp.concatenate([path[0:1], path[:-1]], axis=0)  # Lagged values (first point uses itself)
+
+    # Concatenate lead and lag
+    lead_lag_path = jnp.concatenate([lead, lag], axis=1)
+
+    return lead_lag_path
+
+
 if __name__ == "__main__":
     path = jnp.array(
         [
@@ -215,6 +279,14 @@ if __name__ == "__main__":
             [11.0, 12.0],
             [13.0, 14.0],
             [15.0, 16.0],
+            [17.0, 18.0],
+            [19.0, 20.0],
+            [21.0, 22.0],
+            [23.0, 24.0],
+            [25.0, 26.0],
+            [27.0, 28.0],
+            [29.0, 30.0],
+            [31.0, 32.0],
         ]
     )
     depth = 2
