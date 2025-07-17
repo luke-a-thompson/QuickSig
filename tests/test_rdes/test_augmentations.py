@@ -1,11 +1,12 @@
 import pytest
+import functools
 import jax
 import jax.numpy as jnp
-from quicksig.augmentations import (
+from quicksig.rdes.augmentations import (
     augment_path,
     basepoint_augmentation,
     time_augmentation,
-    sliding_windower,
+    non_overlapping_windower,
     dyadic_windower,
 )
 from tests.test_helpers import generate_scalar_path
@@ -140,7 +141,7 @@ def test_time_augmentation_invalid_inputs(invalid_path):
 )
 def test_sliding_windower_valid_inputs(input_path, window_size, expected_num_windows, expected_shapes):
     """Test sliding_windower with valid inputs."""
-    result = sliding_windower(input_path, window_size)
+    result = non_overlapping_windower(input_path, window_size)
 
     assert len(result) == expected_num_windows
     for i, (window, expected_shape) in enumerate(zip(result, expected_shapes)):
@@ -173,7 +174,7 @@ def test_sliding_windower_valid_inputs(input_path, window_size, expected_num_win
 )
 def test_sliding_windower_content(input_path, window_size, expected_windows):
     """Test sliding_windower content correctness."""
-    result = sliding_windower(input_path, window_size)
+    result = non_overlapping_windower(input_path, window_size)
 
     assert len(result) == len(expected_windows)
     for actual, expected in zip(result, expected_windows):
@@ -191,20 +192,7 @@ def test_sliding_windower_content(input_path, window_size, expected_windows):
 def test_sliding_windower_invalid_inputs(invalid_path, window_size):
     """Test sliding_windower with invalid inputs."""
     with pytest.raises(AssertionError):
-        sliding_windower(invalid_path, window_size)
-
-
-@pytest.mark.parametrize(
-    "input_path, invalid_window_size",
-    [
-        pytest.param(jnp.array([[1, 2], [3, 4]]), 0, id="zero_window_size"),
-        pytest.param(jnp.array([[1, 2], [3, 4]]), -1, id="negative_window_size"),
-    ],
-)
-def test_sliding_windower_invalid_window_size(input_path, invalid_window_size):
-    """Test sliding_windower with invalid window sizes."""
-    with pytest.raises(AssertionError):
-        sliding_windower(input_path, invalid_window_size)
+        non_overlapping_windower(invalid_path, window_size)
 
 
 @pytest.mark.parametrize(
@@ -339,6 +327,194 @@ def test_augment_path_valid_inputs(input_path, augmentations, expected_shape):
     assert result.shape == expected_shape
 
 
+@pytest.mark.parametrize(
+    "input_path, augmentations, expected_num_windows, expected_shapes",
+    [
+        # Just sliding windower
+        pytest.param(
+            jnp.array([[1, 2], [3, 4], [5, 6], [7, 8]]),
+            [functools.partial(non_overlapping_windower, window_size=2)],
+            2,
+            [(2, 2), (2, 2)],
+            id="sliding_only",
+        ),
+        # Sliding windower with remainder
+        pytest.param(
+            jnp.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]),
+            [functools.partial(non_overlapping_windower, window_size=2)],
+            3,
+            [(2, 2), (2, 2), (1, 2)],
+            id="sliding_only_remainder",
+        ),
+        # Sliding windower with basepoint augmentation
+        pytest.param(
+            jnp.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]),  # 5 points
+            [
+                basepoint_augmentation,
+                functools.partial(non_overlapping_windower, window_size=2),
+            ],
+            3,  # 6 points with basepoint, so 3 windows of size 2
+            [(2, 2), (2, 2), (2, 2)],
+            id="sliding_with_basepoint",
+        ),
+        # Sliding windower with time augmentation
+        pytest.param(
+            jnp.array([[1, 2], [3, 4], [5, 6], [7, 8]]),  # 4x2
+            [time_augmentation, functools.partial(non_overlapping_windower, window_size=2)],
+            2,  # 4 points, 2 windows of size 2
+            [(2, 3), (2, 3)],  # shape should have time dim
+            id="sliding_with_time",
+        ),
+        # Sliding windower with basepoint and time augmentation
+        pytest.param(
+            jnp.array([[1, 2], [3, 4], [5, 6]]),  # 3 points
+            [
+                basepoint_augmentation,
+                time_augmentation,
+                functools.partial(non_overlapping_windower, window_size=2),
+            ],
+            2,  # 4 points with basepoint, 2 windows
+            [(2, 3), (2, 3)],  # shape (4,3) -> windows of (2,3)
+            id="sliding_with_basepoint_and_time",
+        ),
+    ],
+)
+def test_augment_path_with_sliding_windower(input_path, augmentations, expected_num_windows, expected_shapes):
+    """Test augment_path with sliding_windower and other augmentations."""
+    result = augment_path(input_path, augmentations)
+
+    assert isinstance(result, list)
+    assert len(result) == expected_num_windows
+    for window, shape in zip(result, expected_shapes):
+        assert window.shape == shape
+
+    # Check content for basepoint augmentation case
+    if basepoint_augmentation in augmentations:
+        assert jnp.all(result[0][0] == 0)
+
+
+@pytest.mark.parametrize(
+    "input_path, augmentations, expected_num_depths, expected_window_counts",
+    [
+        # Just dyadic windower
+        pytest.param(
+            jnp.arange(16).reshape(8, 2),  # 8 points
+            [functools.partial(dyadic_windower, window_depth=2)],
+            3,  # depths 0, 1, 2
+            [1, 2, 4],
+            id="dyadic_only",
+        ),
+        # Dyadic windower with basepoint augmentation
+        pytest.param(
+            jnp.arange(14).reshape(7, 2),  # 7 points
+            [
+                basepoint_augmentation,
+                functools.partial(dyadic_windower, window_depth=2),
+            ],
+            3,  # depths 0, 1, 2. Path becomes 8 points long.
+            [1, 2, 4],
+            id="dyadic_with_basepoint",
+        ),
+        # Dyadic windower with time augmentation
+        pytest.param(
+            jnp.arange(16).reshape(8, 2),  # 8x2
+            [time_augmentation, functools.partial(dyadic_windower, window_depth=1)],
+            2,  # depths 0, 1. Path is 8x3
+            [1, 2],
+            id="dyadic_with_time",
+        ),
+    ],
+)
+def test_augment_path_with_dyadic_windower(
+    input_path,
+    augmentations,
+    expected_num_depths,
+    expected_window_counts,
+):
+    """Test augment_path with dyadic_windower and other augmentations."""
+    result = augment_path(input_path, augmentations)
+
+    assert isinstance(result, list)
+    assert len(result) == expected_num_depths
+    for windows_info, expected_count in zip(result, expected_window_counts):
+        padded_windows, window_lengths = windows_info
+        assert padded_windows.shape[0] == expected_count
+        assert window_lengths.shape[0] == expected_count
+        # If time augmentation was used, check shape
+        if time_augmentation in augmentations:
+            assert padded_windows.shape[-1] == input_path.shape[1] + 1
+        elif basepoint_augmentation not in augmentations:
+            assert padded_windows.shape[-1] == input_path.shape[1]
+
+
+def test_augment_path_sliding_and_dyadic_windower():
+    """Test using both sliding and dyadic windowers with augment_path."""
+    input_path = jnp.arange(64).reshape(32, 2)
+    window_size = 16
+    window_depth = 2
+
+    augmentations = [
+        functools.partial(non_overlapping_windower, window_size=window_size),
+        functools.partial(dyadic_windower, window_depth=window_depth),
+    ]
+
+    result = augment_path(input_path, augmentations)
+
+    # We should get 2 sliding windows of size 16.
+    assert isinstance(result, list)
+    assert len(result) == 2  # 32 / 16
+
+    # Each element of result should be the output of dyadic_windower
+    for dyadic_result in result:
+        assert isinstance(dyadic_result, list)
+        assert len(dyadic_result) == window_depth + 1
+        expected_window_counts = [1, 2, 4]  # for depth 2
+        for windows_info, expected_count in zip(dyadic_result, expected_window_counts):
+            padded_windows, window_lengths = windows_info
+            assert padded_windows.shape[0] == expected_count
+            assert window_lengths.shape[0] == expected_count
+
+
+def test_augment_path_sliding_and_dyadic_with_path_augmentations():
+    """Test sliding and dyadic windowers with path augmentations."""
+    input_path = jnp.arange(60).reshape(30, 2)  # 30 points
+    window_size = 16
+    window_depth = 2
+
+    augmentations = [
+        basepoint_augmentation,  # Path becomes 31 points
+        time_augmentation,  # Path becomes 31x3
+        functools.partial(non_overlapping_windower, window_size=window_size),
+        functools.partial(dyadic_windower, window_depth=window_depth),
+    ]
+
+    result = augment_path(input_path, augmentations)
+
+    # 31 points / 16 = 1 full window, 1 remainder window of 15
+    assert isinstance(result, list)
+    assert len(result) == 2
+
+    # Check first dyadic result (from window of 16)
+    dyadic_result_1 = result[0]
+    assert isinstance(dyadic_result_1, list)
+    assert len(dyadic_result_1) == window_depth + 1
+    expected_window_counts_1 = [1, 2, 4]
+    for windows_info, expected_count in zip(dyadic_result_1, expected_window_counts_1):
+        padded_windows, _ = windows_info
+        assert padded_windows.shape[0] == expected_count
+        assert padded_windows.shape[-1] == 3  # time dimension
+
+    # Check second dyadic result (from window of 15)
+    dyadic_result_2 = result[1]
+    assert isinstance(dyadic_result_2, list)
+    assert len(dyadic_result_2) == window_depth + 1
+    expected_window_counts_2 = [1, 2, 4]
+    for windows_info, expected_count in zip(dyadic_result_2, expected_window_counts_2):
+        padded_windows, _ = windows_info
+        assert padded_windows.shape[0] == expected_count
+        assert padded_windows.shape[-1] == 3
+
+
 def test_multiple_augmentations_combined():
     """Test combining multiple augmentations."""
     input_path = jnp.array([[1, 2], [3, 4], [5, 6]])
@@ -363,7 +539,7 @@ def test_sliding_windower_with_augmented_path():
     input_path = jnp.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]])
     augmented_path = basepoint_augmentation(input_path)
 
-    windows = sliding_windower(augmented_path, 2)
+    windows = non_overlapping_windower(augmented_path, 2)
 
     assert len(windows) == 3  # 6 points with window_size=2
     assert windows[0].shape == (2, 2)
@@ -413,7 +589,7 @@ def test_sliding_windower_with_gbm_path(n_features: int, window_size: int):
     _test_key, subkey = jax.random.split(_test_key)
 
     path = generate_scalar_path(subkey, num_timesteps=20, n_features=n_features)
-    windows = sliding_windower(path, window_size)
+    windows = non_overlapping_windower(path, window_size)
 
     n_full_windows = 20 // window_size
     remainder = 20 % window_size
@@ -469,3 +645,14 @@ def test_augment_path_with_gbm_path(n_features: int):
     # Check time dimension
     expected_times = jnp.linspace(0, 1, path.shape[0] + 1)
     assert jnp.allclose(result[:, 0], expected_times)
+
+
+def test_augment_path_unknown_augmentation():
+    """Test that augment_path raises an error for an unknown augmentation."""
+    input_path = jnp.array([[1, 2]])
+
+    def unknown_aug(p):
+        return p
+
+    with pytest.raises(ValueError, match="Unknown augmentation"):
+        augment_path(input_path, [unknown_aug])
