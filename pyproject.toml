@@ -57,6 +57,7 @@ dev = [
     "signax>=0.2.1",
     "rich>=13.7.0",
     "tqdm>=4.67.1",
+    "ipykernel>=6.29.5",
 ]
 all = ["quicksig[cuda,dev]"]
 
