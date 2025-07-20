@@ -6,6 +6,7 @@ from quicksig.rdes.augmentations import (
     augment_path,
     basepoint_augmentation,
     time_augmentation,
+    lead_lag_augmentation,
     non_overlapping_windower,
     dyadic_windower,
 )
@@ -104,6 +105,60 @@ def test_time_augmentation_invalid_inputs(invalid_path):
     """Test time_augmentation with invalid inputs."""
     with pytest.raises(AssertionError):
         time_augmentation(invalid_path)
+
+
+@pytest.mark.parametrize(
+    "leading_path, lagging_path, expected_output",
+    [
+        pytest.param(
+            jnp.array([[1.0], [2.0], [3.0]]),
+            jnp.array([[0.1], [0.2], [0.3]]),
+            jnp.array([[1.0, 0.1], [2.0, 0.1], [3.0, 0.2]]),
+            id="1D_paths",
+        ),
+        pytest.param(
+            jnp.array([[1.0, 2.0], [3.0, 4.0]]),
+            jnp.array([[0.1, 0.2], [0.3, 0.4]]),
+            jnp.array([[1.0, 2.0, 0.1, 0.2], [3.0, 4.0, 0.1, 0.2]]),
+            id="2D_paths",
+        ),
+        pytest.param(
+            jnp.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]),
+            jnp.array([[0.1], [0.3], [0.5]]),
+            jnp.array([[1.0, 2.0, 0.1], [3.0, 4.0, 0.1], [5.0, 6.0, 0.3]]),
+            id="2D_leading_1D_lagging",
+        ),
+    ],
+)
+def test_lead_lag_augmentation_valid_inputs(leading_path, lagging_path, expected_output):
+    """Test lead_lag_augmentation with valid inputs."""
+    result = lead_lag_augmentation(leading_path, lagging_path)
+    assert result.shape == (
+        leading_path.shape[0],
+        leading_path.shape[1] + lagging_path.shape[1],
+    )
+    assert jnp.allclose(result, expected_output)
+
+
+@pytest.mark.parametrize(
+    "leading_path, lagging_path",
+    [
+        pytest.param(
+            jnp.array([[1.0], [2.0], [3.0]]),
+            jnp.array([[0.1], [0.2]]),
+            id="leading_longer",
+        ),
+        pytest.param(
+            jnp.array([[1.0], [2.0]]),
+            jnp.array([[0.1], [0.2], [0.3]]),
+            id="lagging_longer",
+        ),
+    ],
+)
+def test_lead_lag_augmentation_mismatched_lengths(leading_path, lagging_path):
+    """Test lead_lag_augmentation raises ValueError for mismatched lengths."""
+    with pytest.raises(ValueError):
+        lead_lag_augmentation(leading_path, lagging_path)
 
 
 @pytest.mark.parametrize(
