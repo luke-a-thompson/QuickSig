@@ -20,6 +20,52 @@ def bm_driver(key: jax.Array, timesteps: int, dim: int) -> jax.Array:
     return path
 
 
+def correlated_bm_driver(path1: jax.Array, path2: jax.Array, corr_matrix: jax.Array) -> jax.Array:
+    """
+    Generates a new Brownian motion path that is correlated with a reference path.
+
+    It takes two independent Brownian motion paths and a 2x2 correlation matrix.
+    It returns a new path that has the desired correlation with the first path.
+    The first path is returned unchanged. This function effectively replaces the
+    second path with a correlated version.
+
+    args:
+        path1:       A JAX array of shape (timesteps + 1, dim) representing the first Brownian motion path.
+        path2:       A JAX array of shape (timesteps + 1, dim) representing the second (independent) Brownian motion path.
+        corr_matrix: 2x2 correlation matrix.
+    returns:
+        A JAX array of shape (timesteps + 1, dim) representing the new correlated Brownian motion path.
+    """
+    if path1.shape != path2.shape:
+        raise ValueError(f"The two paths must have the same shape. Got shapes {path1.shape} and {path2.shape}")
+    assert corr_matrix.shape == (2, 2), "Correlation matrix must have shape (2, 2)."
+    if not jnp.allclose(jnp.diag(corr_matrix), 1.0):
+        raise ValueError(f"The diagonal of the correlation matrix must be 1. Got {jnp.diag(corr_matrix)}")
+    if not jnp.allclose(corr_matrix, corr_matrix.T):
+        raise ValueError("The correlation matrix must be symmetric.")
+
+    chol_matrix = jnp.linalg.cholesky(corr_matrix)
+
+    # Get increments of the independent paths
+    increments1 = jnp.diff(path1, axis=0)
+    increments2 = jnp.diff(path2, axis=0)
+
+    # Correlate the increments
+    # new_increments_1 = chol_matrix[0, 0] * increments1 + chol_matrix[0, 1] * increments2
+    # Since corr_matrix is a correlation matrix, chol_matrix[0, 1] is 0.
+    # So new_increments_1 is proportional to increments1.
+    # We leave path1 unchanged.
+    new_increments_2 = chol_matrix[1, 0] * increments1 + chol_matrix[1, 1] * increments2
+
+    # Cumsum to get the new path
+    new_path = jnp.cumsum(new_increments_2, axis=0)
+
+    # Prepend the starting point (origin)
+    new_path = jnp.concatenate([jnp.zeros((1, path1.shape[1])), new_path], axis=0)
+
+    return new_path
+
+
 def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float) -> jax.Array:
     """
     Generates sample paths of fractional Brownian Motion using the Davies Harte method with JAX.
@@ -86,7 +132,7 @@ def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float)
 
 def riemann_liouville_driver(key: jax.Array, timesteps: int, hurst: float, bm_path: jax.Array) -> jax.Array:
     """
-    Simulate a type-II (Riemann–Liouville) fractional Brownian motion (fBM)
+    Simulate a type-II (Riemann-Liouville) fractional Brownian motion (fBM)
     path using the κ = 1 hybrid scheme of Bennedsen-Lunde-Pakkanen
     (2017, Eq. (20)) on a *pre-computed* Brownian motion trajectory.
 
@@ -103,7 +149,7 @@ def riemann_liouville_driver(key: jax.Array, timesteps: int, hurst: float, bm_pa
         Brownian increments internally.
     hurst : float
         Hurst parameter ``H ∈ (0,1)``.  Inside the algorithm we use
-        ``ζ = H − 0.5``.
+        ``ζ = H - 0.5``.
 
     Returns
     -------
@@ -156,38 +202,3 @@ def riemann_liouville_driver(key: jax.Array, timesteps: int, hurst: float, bm_pa
 
     # Prepend initial zero to obtain the full path (timesteps+1, dim)
     return jnp.concatenate([jnp.zeros((1, dim)), GX_tail], axis=0)
-
-
-if __name__ == "__main__":
-    key = jax.random.key(0)
-    bm_path = bm_driver(key, timesteps=1000, dim=1)  # (timesteps+1, dim)
-    rl_path = riemann_liouville_driver(key, timesteps=1000, hurst=0.25, bm_path=bm_path)
-    print(bm_path.shape)
-    print(rl_path.shape)
-    # import matplotlib.pyplot as plt
-
-    # key = jax.random.key(0)
-    # H = 0.25
-    # N = 1000
-    # dim = 1
-
-    # # Generate keys for each driver
-    # bm_key, fbm_key, rl_key = jax.random.split(key, 3)
-
-    # # Generate paths
-    # bm_path = bm_driver(bm_key, timesteps=N, dim=dim)
-    # fbm_path = fractional_bm_driver(fbm_key, timesteps=N, dim=dim, hurst=H) * 1000
-    # rl_path = riemann_liouville_driver(rl_key, bm_path=bm_path, hurst=H)
-
-    # # Create the plot
-    # plt.figure(figsize=(10, 6))
-    # plt.plot(bm_path, label="Brownian Motion")
-    # plt.plot(fbm_path, label=f"fBM Davies-Harte (H={H})")
-    # plt.plot(rl_path, label=f"Riemann-Liouville (H={H})")
-
-    # plt.title("Comparison of RDE Drivers")
-    # plt.xlabel("Time")
-    # plt.ylabel("Value")
-    # plt.legend()
-    # plt.grid(True)
-    # plt.savefig("drivers_comparison.png")
