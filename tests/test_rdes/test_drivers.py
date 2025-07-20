@@ -1,13 +1,53 @@
 import jax
 import jax.numpy as jnp
-from quicksig.rdes.drivers import riemann_liouville_driver, bm_driver
+from quicksig.rdes.drivers import bm_driver, correlated_bm_driver, riemann_liouville_driver
 import pytest
+
+
+@pytest.mark.parametrize("seed", [0, 1])
+@pytest.mark.parametrize("rho", [-0.9, -0.5, 0.0, 0.5, 0.9])
+@pytest.mark.parametrize("timesteps", [500, 1000])
+@pytest.mark.parametrize("dim", [1, 5])
+def test_correlated_bm_driver_correlation(seed: int, rho: float, timesteps: int, dim: int):
+    """
+    Test that the correlated_bm_driver produces a path with the correct
+    correlation.
+    """
+    key = jax.random.key(seed)
+    key1, key2 = jax.random.split(key)
+
+    # Generate two independent Brownian paths
+    path1 = bm_driver(key1, timesteps=timesteps, dim=dim)
+    path2 = bm_driver(key2, timesteps=timesteps, dim=dim)
+
+    # Create the correlation matrix
+    corr_matrix = jnp.array([[1.0, rho], [rho, 1.0]])
+
+    # Generate the correlated path
+    correlated_path = correlated_bm_driver(path1, path2, corr_matrix)
+
+    # The correlation is defined for the increments
+    increments1 = jnp.diff(path1, axis=0)
+    correlated_increments = jnp.diff(correlated_path, axis=0)
+
+    # Compute empirical correlation
+    # We flatten in case dim > 1
+    empirical_corr = jnp.corrcoef(increments1.flatten(), correlated_increments.flatten())[0, 1]
+
+    # Check if the empirical correlation is close to the target rho
+    assert jnp.isclose(empirical_corr, rho, atol=1e-1)
+
+    # Also test correlation with the second path
+    increments2 = jnp.diff(path2, axis=0)
+    empirical_corr_vs_path2 = jnp.corrcoef(increments2.flatten(), correlated_increments.flatten())[0, 1]
+    expected_corr_vs_path2 = jnp.sqrt(1 - rho**2)
+    assert jnp.isclose(empirical_corr_vs_path2, expected_corr_vs_path2, atol=1e-1)
 
 
 @pytest.mark.parametrize("seed", [0, 1])
 @pytest.mark.parametrize("timesteps", [1000, 3000])
 @pytest.mark.parametrize("hurst", [0.25, 0.5, 0.75])
-def test_variance_scaling(seed: int, timesteps: int, hurst: float):
+def test_riemann_liouville_variance_scaling(seed: int, timesteps: int, hurst: float):
     """
     Test the variance scaling of the Riemann-Liouville fBM implementation.
     The variance of fBM scales as t^(2H), so a log-log plot of variance vs. time
