@@ -232,40 +232,44 @@ def dyadic_windower(path: jax.Array, window_depth: int) -> list[tuple[jax.Array,
     return all_windows_info
 
 
-def lead_lag_augmentation(path: jax.Array) -> jax.Array:
+def lead_lag_augmentation(leading_path: jax.Array, lagging_path: jax.Array) -> jax.Array:
     r"""Augment the path with a lead-lag transformation.
 
-    This function creates a lead-lag transformation of the path where each point
-    contains both the current value (lead) and the previous value (lag).
-    This doubles the dimension of the path.
+    This function creates a lead-lag transformation by combining a leading
+    path and a lagging path. The lagging path is shifted by one time step.
+
+    The two paths must have the same number of time steps.
 
     Args:
-        path: Input path array of shape `(n_points, n_dims)`.
+        leading_path: The path that leads.
+        lagging_path: The path that lags.
 
     Returns:
-        Augmented path array of shape `(n_points, 2 * n_dims)` where each
-        point contains both lead and lag components.
+        The augmented path, which is the concatenation of the leading path and
+        the lagged path.
+
+    Raises:
+        ValueError: If the number of time steps in the leading and lagging
+            paths are different.
 
     Examples:
         >>> import jax.numpy as jnp
         >>> from quicksig.rdes.augmentations import lead_lag_augmentation
-        >>> path = jnp.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
-        >>> lead_lag_augmentation(path)
-        Array([[1., 2., 1., 2.],
-               [3., 4., 1., 2.],
-               [5., 6., 3., 4.]], dtype=float32)
+        >>> leading_path = jnp.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        >>> lagging_path = jnp.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])
+        >>> lead_lag_augmentation(leading_path, lagging_path)
+        Array([[1. , 2. , 0.1, 0.2],
+               [3. , 4. , 0.1, 0.2],
+               [5. , 6. , 0.3, 0.4]], dtype=float32)
     """
-    assert path.ndim == 2
-    n_points, n_dims = path.shape
+    if leading_path.shape[0] != lagging_path.shape[0]:
+        raise ValueError("The number of time steps in the leading and lagging paths must be the same.")
 
-    # Create lead (current) and lag (previous) components
-    lead = path  # Current values
-    lag = jnp.concatenate([path[0:1], path[:-1]], axis=0)  # Lagged values (first point uses itself)
+    # Lag the lagging path by one time step.
+    lag = jnp.concatenate([lagging_path[0:1], lagging_path[:-1]], axis=0)
 
-    # Concatenate lead and lag
-    lead_lag_path = jnp.concatenate([lead, lag], axis=1)
-
-    return lead_lag_path
+    # Concatenate the leading path and the lagged path.
+    return jnp.concatenate([leading_path, lag], axis=1)
 
 
 if __name__ == "__main__":
