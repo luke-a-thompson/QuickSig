@@ -1,7 +1,11 @@
 import math
+from functools import partial
+
+import jax
 
 
-def compute_signature_dim(depth: int, dim: int) -> int:
+@partial(jax.jit, static_argnames=("depth", "dim", "flatten"))
+def get_signature_dim(depth: int, dim: int, flatten: bool = True) -> int | list[int]:
     """Compute the dimension of the signature space for a given depth and dimension.
 
     Args:
@@ -11,10 +15,13 @@ def compute_signature_dim(depth: int, dim: int) -> int:
     Returns:
         int: The dimension of the signature space.
     """
-    return sum(dim**k for k in range(1, depth + 1))
+    if flatten:
+        return sum(dim**k for k in range(1, depth + 1))
+    else:
+        return [dim**k for k in range(1, depth + 1)]
 
 
-def get_prime_factorization(n: int) -> dict[int, int]:
+def _get_prime_factorization(n: int) -> dict[int, int]:
     factors: dict[int, int] = {}
     d = 2
     temp_n = n
@@ -28,17 +35,17 @@ def get_prime_factorization(n: int) -> dict[int, int]:
     return factors
 
 
-def mobius_mu(n: int) -> int:
+def _mobius_mu(n: int) -> int:
     if n == 1:
         return 1
-    prime_factors = get_prime_factorization(n)
+    prime_factors = _get_prime_factorization(n)
     for p in prime_factors:
         if prime_factors[p] > 1:
             return 0  # Has a squared prime factor
     return (-1) ** len(prime_factors)  # Product of k distinct primes
 
 
-def get_divisors(n: int) -> list[int]:
+def _get_divisors(n: int) -> list[int]:
     divs = set()
     for i in range(1, int(math.sqrt(n)) + 1):
         if n % i == 0:
@@ -53,15 +60,16 @@ def num_lyndon_words_of_length_k(num_symbols: int, length: int) -> int:
     if num_symbols == 1:  # Alphabet has only one symbol e.g. "a"
         return 1 if length == 1 else 0  # Only "a" is a Lyndon word, "aa", "aaa" are not.
 
-    divs = get_divisors(length)
+    divs = _get_divisors(length)
     total_sum = 0
     for d in divs:
-        total_sum += int(mobius_mu(length // d) * (num_symbols**d))
+        total_sum += int(_mobius_mu(length // d) * (num_symbols**d))
     return total_sum // length
 
 
-def compute_log_signature_dim(depth: int, dim: int) -> int:
-    """Compute the dimension of the log-signature space for a given depth and dimension.
+@partial(jax.jit, static_argnames=("depth", "dim", "flatten"))
+def get_log_signature_dim(depth: int, dim: int, flatten: bool = True) -> int | list[int]:
+    """Compute the dimension of the log-signature space for a given depth and dimension using Witt's formula.
 
     Args:
         depth (int): The depth of the log-signature.
@@ -70,16 +78,7 @@ def compute_log_signature_dim(depth: int, dim: int) -> int:
     Returns:
         int: The dimension of the log-signature space.
     """
-    return sum(num_lyndon_words_of_length_k(dim, k) for k in range(1, depth + 1))
-
-
-if __name__ == "__main__":
-    import jax
-    from quicksig import get_signature, get_log_signature
-
-    key = jax.random.PRNGKey(0)
-    path = jax.random.normal(key, shape=(10, 100, 2))  # Stream
-    signature: jax.Array = get_signature(path, depth=2)
-    print(signature.shape, compute_signature_dim(5, 2))
-    log_signature: jax.Array = get_log_signature(path, depth=5, log_signature_type="lyndon")
-    print(log_signature.shape, compute_log_signature_dim(5, 2))
+    if flatten:
+        return sum(num_lyndon_words_of_length_k(dim, k) for k in range(1, depth + 1))
+    else:
+        return [num_lyndon_words_of_length_k(dim, k) for k in range(1, depth + 1)]

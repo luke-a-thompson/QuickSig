@@ -1,34 +1,90 @@
+from functools import partial
 import jax
 from quicksig.tensor_ops import tensor_log
-from quicksig.path_signature import path_signature
+from quicksig.signatures.compute_path_signature import compute_path_signature
+from quicksig.signatures.signature_types import Signature, LogSignature
 
-from typing import Literal
+from typing import Literal, overload
 from collections import defaultdict
 import jax.numpy as jnp
 
 
-def path_log_signature(path: jax.Array, depth: int, log_signature_type: Literal["expanded", "lyndon"]) -> list[jax.Array]:
+@overload
+def compute_log_signature(
+    path: jax.Array,
+    depth: int,
+    log_signature_type: Literal["Tensor words", "Lyndon words"],
+    mode: Literal["full"],
+) -> LogSignature: ...
+
+
+@overload
+def compute_log_signature(
+    path: jax.Array,
+    depth: int,
+    log_signature_type: Literal["Tensor words", "Lyndon words"],
+    mode: Literal["stream", "incremental"],
+) -> list[LogSignature]: ...
+
+
+@partial(jax.jit, static_argnames=["depth", "log_signature_type", "mode"])
+def compute_log_signature(
+    path: jax.Array,
+    depth: int,
+    log_signature_type: Literal["Tensor words", "Lyndon words"],
+    mode: Literal["full", "stream", "incremental"],
+) -> LogSignature | list[LogSignature]:
     """
     Compute the log signature of a path.
+
+    Args:
+        path: A JAX array of shape (seq_len, n_features).
+        depth: The depth of the log signature.
+        log_signature_type: Type of log signature, "expanded" or "lyndon".
+        mode:
+            If "stream", returns a stream of log signatures.
+            If "incremental", returns the log signature of each increment.
+            If "full", returns the full log signature.
+
+    Returns:
+        A list of JAX arrays representing the log signature.
+        If stream is True, each array will have a leading time dimension.
     """
 
     n_features = path.shape[-1]
-    signature: list[jax.Array] = path_signature(path, depth, stream=False)
-    match log_signature_type:
-        case "expanded":
-            return tensor_log(signature, n_features)
-        case "lyndon":
-            indices = duval_algorithm(depth, n_features)
-            log_signature = tensor_log(signature, n_features)
-            return compress(log_signature, indices)
-        case _:
+    signature_result = compute_path_signature(path, depth, mode=mode)
+
+    def _get_log_signature(signature: Signature) -> LogSignature:
+        if log_signature_type == "Tensor words":
+            log_sig_tensors = tensor_log(signature.signature, n_features)
+        elif log_signature_type == "Lyndon words":
+            indices = duval_generator(depth, n_features)
+            log_signature_expanded = tensor_log(signature.signature, n_features, flatten_output=False)
+            log_sig_tensors = compress(log_signature_expanded, indices)
+        else:
             raise ValueError(f"Invalid log signature type: {log_signature_type}")
 
+        return LogSignature(
+            signature=log_sig_tensors,
+            interval=signature.interval,
+            ambient_dimension=n_features,
+            depth=depth,
+            basis_name=log_signature_type,
+        )
 
-def duval_algorithm(depth: int, dim: int) -> list[jax.Array]:
+    if isinstance(signature_result, list):
+        return [_get_log_signature(sig) for sig in signature_result]
+    else:
+        return _get_log_signature(signature_result)
+
+
+@partial(jax.jit, static_argnames=["depth", "dim"])
+def duval_generator(depth: int, dim: int) -> list[jax.Array]:
     """Generates lists of words (integer sequences) for each level up to a specified depth.
 
     These words typically correspond to the Lyndon word basis.
+
+    Ref: https://www.lyndex.org/algo.php
 
     Args:
         depth (int): The maximum length of words to generate. This corresponds to the

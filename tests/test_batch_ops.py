@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from quicksig.tensor_ops import restricted_tensor_exp, tensor_log, tensor_product, seq_tensor_product, cauchy_prod
+from quicksig.tensor_ops import restricted_tensor_exp, tensor_log, tensor_product, seq_tensor_product, cauchy_convolution
 
 
 def test_batch_log_inverse_of_exp() -> None:
@@ -39,11 +39,9 @@ def test_batch_log_inverse_of_exp() -> None:
     #   - None for n_features: it's a static argument.
     log_of_exp_terms = jax.vmap(tensor_log, in_axes=(0, None))(exp_terms_list, n_features)
 
-
     # Flatten the log terms (already batched)
     log_terms_flat_list = [term.reshape(B, -1) for term in log_of_exp_terms]
     log_concatenated = jnp.concatenate(log_terms_flat_list, axis=-1)
-
 
     assert log_concatenated.shape == (
         B,
@@ -177,7 +175,6 @@ def test_batch_seq_tensor_product_values() -> None:
     # y2_b_s: (B2, S2, N) = (1, 2, 2)
     y2_b_s = jnp.array([[[5.0, 6.0], [5.1, 6.1]]])
 
-
     # Manually construct expected output by applying vmap(tensor_product) per sequence element
     # and then stacking. This also indirectly tests tensor_product logic.
     # x2_b_s[:, 0, :, :] has shape (B2, M, K)
@@ -296,23 +293,23 @@ def test_batch_cauchy_prod_logic(x_terms_defs: list[tuple[int, ...]], y_terms_de
     S_levels_shapes: list[jax.Array] = []
     for i in range(1, depth + 1):
         s_key, subkey = jax.random.split(s_key)
-        S_levels_shapes.append(jax.random.normal(subkey, (B,) + (n_features,) * i)) # dummy content, shape is key
+        S_levels_shapes.append(jax.random.normal(subkey, (B,) + (n_features,) * i))  # dummy content, shape is key
 
     # Calculate expected output manually (already batched)
     expected_out_terms: list[jax.Array] = [jnp.zeros_like(S_levels_shapes[k]) for k in range(depth)]
 
     # Loop over output orders (k_out for Z^{(k_out+1)})
     # Z order k_out+1. This means k_out index in expected_out_terms.
-    for k_out in range(depth): # k_out from 0 to depth-1
-        target_order_Z = k_out + 1 # order of Z term we are computing
+    for k_out in range(depth):  # k_out from 0 to depth-1
+        target_order_Z = k_out + 1  # order of Z term we are computing
         current_sum_for_order_Zk = jnp.zeros_like(S_levels_shapes[k_out])
 
         # Sum over X_i Y_j where order(X_i) + order(Y_j) = target_order_Z
         for i_x_term_idx in range(len(x_terms)):
-            x_term_order = x_terms_defs[i_x_term_idx][0] # Actual order of X term, e.g. 1, 2...
-            
+            x_term_order = x_terms_defs[i_x_term_idx][0]  # Actual order of X term, e.g. 1, 2...
+
             for j_y_term_idx in range(len(y_terms)):
-                y_term_order = y_terms_defs[j_y_term_idx][0] # Actual order of Y term
+                y_term_order = y_terms_defs[j_y_term_idx][0]  # Actual order of Y term
 
                 if x_term_order + y_term_order == target_order_Z:
                     # x_terms[i_x_term_idx] is (B, feat_x)
@@ -320,9 +317,8 @@ def test_batch_cauchy_prod_logic(x_terms_defs: list[tuple[int, ...]], y_terms_de
                     # vmap tensor_product over these batched tensors
                     prod = jax.vmap(tensor_product)(x_terms[i_x_term_idx], y_terms[j_y_term_idx])
                     current_sum_for_order_Zk += prod
-        if target_order_Z > 0 : # Z_0 is always zero in this context (not computed by cauchy_prod)
-             expected_out_terms[k_out] = current_sum_for_order_Zk
-
+        if target_order_Z > 0:  # Z_0 is always zero in this context (not computed by cauchy_prod)
+            expected_out_terms[k_out] = current_sum_for_order_Zk
 
     # cauchy_prod expects lists of unbatched tensors.
     # vmap handles the batching. in_axes=(0,0,None,0) means:
@@ -330,7 +326,7 @@ def test_batch_cauchy_prod_logic(x_terms_defs: list[tuple[int, ...]], y_terms_de
     #   - y_terms: each tensor in list is unstacked at axis 0
     #   - depth: static
     #   - S_levels_shapes: each tensor in list is unstacked at axis 0
-    result_terms = jax.vmap(cauchy_prod, in_axes=(0, 0, None, 0))(x_terms, y_terms, depth, S_levels_shapes)
+    result_terms = jax.vmap(cauchy_convolution, in_axes=(0, 0, None, 0))(x_terms, y_terms, depth, S_levels_shapes)
 
     assert len(result_terms) == depth
     for i in range(depth):
@@ -338,8 +334,8 @@ def test_batch_cauchy_prod_logic(x_terms_defs: list[tuple[int, ...]], y_terms_de
         # Check if expected_out_terms[i] is non-zero or if result_terms[i] is also zero
         # This handles cases where an order might not be produced (e.g. Z1 for X=(X2), Y=(Y2))
         if jnp.any(expected_out_terms[i] != 0) or jnp.any(result_terms[i] != 0):
-             assert jnp.allclose(result_terms[i], expected_out_terms[i], atol=1e-5), f"Term {i} (order {i+1}) mismatch. Got:\n{result_terms[i]}\nExpected:\n{expected_out_terms[i]}"
-        else: # Both are zero, which is fine
+            assert jnp.allclose(result_terms[i], expected_out_terms[i], atol=1e-5), f"Term {i} (order {i+1}) mismatch. Got:\n{result_terms[i]}\nExpected:\n{expected_out_terms[i]}"
+        else:  # Both are zero, which is fine
             pass
 
 
@@ -386,4 +382,6 @@ def test_batch_tensor_log_specific_depths(depth: int, n_features: int) -> None:
     assert len(log_output_terms_batched) == depth, f"Expected {depth} terms, got {len(log_output_terms_batched)}"
     for i, (output_term, expected_term) in enumerate(zip(log_output_terms_batched, expected_log_terms_batched)):
         assert output_term.shape == expected_term.shape, f"Term {i} shape mismatch: got {output_term.shape}, expected {expected_term.shape}"
-        assert jnp.allclose(output_term, expected_term, atol=1e-5), f"Term {i} value mismatch for depth={depth}, n_features={n_features}.\nGot:\n{output_term}\nExpected:\n{expected_term}"
+        assert jnp.allclose(
+            output_term, expected_term, atol=1e-5
+        ), f"Term {i} value mismatch for depth={depth}, n_features={n_features}.\nGot:\n{output_term}\nExpected:\n{expected_term}"
