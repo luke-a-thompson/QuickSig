@@ -226,11 +226,10 @@ def test_signature_str_representation():
     str_repr = str(sig)
 
     # Check that the string representation contains expected information
-    assert "Signature:" in str_repr
-    assert "Depth: 2" in str_repr
-    assert "Ambient Dimension: 2" in str_repr
-    assert "Interval: (0.0, 1.0)" in str_repr
-    assert "Signature shapes:" in str_repr
+    assert "depth=2" in str_repr
+    assert "ambient_dimension=2" in str_repr
+    assert "interval=(0.0, 1.0)" in str_repr
+    assert "signature_shapes=" in str_repr
 
 
 def test_log_signature_matmul_not_implemented():
