@@ -1,8 +1,9 @@
 import jax
 import jax.numpy as jnp
+from quicksig.rdes.rde_types import Path
 
 
-def bm_driver(key: jax.Array, timesteps: int, dim: int) -> jax.Array:
+def bm_driver(key: jax.Array, timesteps: int, dim: int) -> Path:
     """
     Generates a Brownian motion path.
 
@@ -17,10 +18,27 @@ def bm_driver(key: jax.Array, timesteps: int, dim: int) -> jax.Array:
     increments = jax.random.normal(key, (timesteps, dim)) * jnp.sqrt(dt)
     path = jnp.cumsum(increments, axis=0)
     path = jnp.concatenate([jnp.zeros((1, dim)), path])
-    return path
+    return Path(path, (0, timesteps))
 
+def correlate_bm_driver_against_reference(reference_path: Path, indep_path: Path, rho: float) -> Path:
+    if reference_path.path.shape != indep_path.path.shape:
+        raise ValueError(f"Reference path and indep path must have the same shape. Got shapes {reference_path.path.shape} and {indep_path.path.shape}")
+    if rho < -1 or rho > 1:
+        raise ValueError(f"rho must be between -1 and 1. Got {rho}")
+    
+    # Get increments of the independent paths
+    reference_increments = jnp.diff(reference_path.path, axis=0)
+    indep_increments = jnp.diff(indep_path.path, axis=0)
 
-def correlated_bm_driver(path1: jax.Array, path2: jax.Array, corr_matrix: jax.Array) -> jax.Array:
+    correlated_increments = rho * reference_increments + jnp.sqrt(1 - rho**2) * indep_increments
+
+    initial_cond = indep_path.path[0, :]
+    correlated_path = initial_cond + jnp.cumsum(correlated_increments, axis=0)
+    correlated_path = jnp.concatenate([initial_cond[None, :], correlated_path], axis=0)
+    return Path(correlated_path, indep_path.interval)
+    
+
+def correlated_bm_drivers(indep_bm_paths: Path, corr_matrix: jax.Array) -> Path:
     """
     Generates a new Brownian motion path that is correlated with a reference path.
 
@@ -35,10 +53,10 @@ def correlated_bm_driver(path1: jax.Array, path2: jax.Array, corr_matrix: jax.Ar
         corr_matrix: 2x2 correlation matrix.
     returns:
         A JAX array of shape (timesteps + 1, dim) representing the new correlated Brownian motion path.
-    """
-    if path1.shape != path2.shape:
-        raise ValueError(f"The two paths must have the same shape. Got shapes {path1.shape} and {path2.shape}")
-    assert corr_matrix.shape == (2, 2), "Correlation matrix must have shape (2, 2)."
+    """    
+    num_paths = indep_bm_paths.path.shape[0]
+    if corr_matrix.shape != (num_paths, num_paths):
+        raise ValueError(f"Received {num_paths} paths, but got a correlation matrix with shape {corr_matrix.shape}. Corr matrix must be shape (num_paths, num_paths).")
     if not jnp.allclose(jnp.diag(corr_matrix), 1.0):
         raise ValueError(f"The diagonal of the correlation matrix must be 1. Got {jnp.diag(corr_matrix)}")
     if not jnp.allclose(corr_matrix, corr_matrix.T):
@@ -47,26 +65,23 @@ def correlated_bm_driver(path1: jax.Array, path2: jax.Array, corr_matrix: jax.Ar
     chol_matrix = jnp.linalg.cholesky(corr_matrix)
 
     # Get increments of the independent paths
-    increments1 = jnp.diff(path1, axis=0)
-    increments2 = jnp.diff(path2, axis=0)
+    indep_increments = jnp.diff(indep_bm_paths.path, axis=1)
 
     # Correlate the increments
-    # new_increments_1 = chol_matrix[0, 0] * increments1 + chol_matrix[0, 1] * increments2
-    # Since corr_matrix is a correlation matrix, chol_matrix[0, 1] is 0.
-    # So new_increments_1 is proportional to increments1.
-    # We leave path1 unchanged.
-    new_increments_2 = chol_matrix[1, 0] * increments1 + chol_matrix[1, 1] * increments2
+    correlated_increments = jnp.einsum("qtd,pq->ptd", indep_increments, chol_matrix)
 
     # Cumsum to get the new path
-    new_path = jnp.cumsum(new_increments_2, axis=0)
+    new_path = jnp.cumsum(correlated_increments, axis=1)
+    
+    # Add zeros at the beginning to ensure Brownian motion starts at 0
+    # Shape: (batch, time, nodes) -> add zeros at time=0
+    zeros_shape = (new_path.shape[0], 1, new_path.shape[2])
+    new_path = jnp.concatenate([jnp.zeros(zeros_shape), new_path], axis=1)
 
-    # Prepend the starting point (origin)
-    new_path = jnp.concatenate([jnp.zeros((1, path1.shape[1])), new_path], axis=0)
-
-    return new_path
+    return Path(new_path, indep_bm_paths.interval)
 
 
-def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float) -> jax.Array:
+def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float) -> Path:
     """
     Generates sample paths of fractional Brownian Motion using the Davies Harte method with JAX.
 
@@ -127,10 +142,10 @@ def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float)
 
     keys = jax.random.split(key, dim)
     paths = jax.vmap(get_path, in_axes=(0, None, None))(keys, timesteps, hurst)
-    return paths.T
+    return Path(paths.T, (0, timesteps))
 
 
-def riemann_liouville_driver(key: jax.Array, timesteps: int, hurst: float, bm_path: jax.Array) -> jax.Array:
+def riemann_liouville_driver(key: jax.Array, timesteps: int, hurst: float, bm_path: Path) -> Path:
     """
     Simulate a type-II (Riemann-Liouville) fractional Brownian motion (fBM)
     path using the κ = 1 hybrid scheme of Bennedsen-Lunde-Pakkanen
@@ -159,13 +174,13 @@ def riemann_liouville_driver(key: jax.Array, timesteps: int, hurst: float, bm_pa
     """
 
     # Check dimensions
-    assert bm_path.shape[0] == timesteps + 1, "bm_path must have shape (timesteps+1, dim)"
-    dim: int = bm_path.shape[1] if bm_path.ndim == 2 else 1
+    assert bm_path.num_timesteps == timesteps + 1, "bm_path must have shape (timesteps+1, dim)"
+    dim: int = bm_path.ambient_dimension
 
     Δ: float = 1.0 / timesteps
 
     # Brownian increments ΔW_k on [t_{k-1}, t_k]
-    ΔW: jax.Array = jnp.diff(bm_path if bm_path.ndim == 2 else bm_path[:, None], axis=0)  # (timesteps, dim)
+    ΔW: jax.Array = jnp.diff(bm_path.path, axis=0)  # (timesteps, dim)
 
     ζ: float = hurst - 0.5
     Cζ: jax.Array = jnp.sqrt(2 * ζ + 1)
@@ -201,4 +216,13 @@ def riemann_liouville_driver(key: jax.Array, timesteps: int, hurst: float, bm_pa
     _, GX_tail = jax.lax.scan(step, jnp.zeros((dim,)), jnp.arange(1, timesteps + 1))
 
     # Prepend initial zero to obtain the full path (timesteps+1, dim)
-    return jnp.concatenate([jnp.zeros((1, dim)), GX_tail], axis=0)
+    return Path(jnp.concatenate([jnp.zeros((1, dim)), GX_tail], axis=0), (0, timesteps))
+
+if __name__ == "__main__":
+    key = jax.random.PRNGKey(0)
+    fbm_path = fractional_bm_driver(key, timesteps=100, dim=1, hurst=0.5)
+    print(fbm_path)
+
+    bm_path_for_rl = bm_driver(key, timesteps=100, dim=1)
+    rl_path = riemann_liouville_driver(key, timesteps=100, hurst=0.5, bm_path=bm_path_for_rl)
+    print(rl_path)

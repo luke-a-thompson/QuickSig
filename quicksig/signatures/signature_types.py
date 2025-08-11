@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, override, Self
+from typing import Literal, override
 from abc import ABC
 import jax
 import jax.numpy as jnp
@@ -20,11 +20,12 @@ class BaseSignature(ABC):
 
     @override
     def __str__(self) -> str:
-        string = f"""{self.__class__.__name__}:
-            - Depth: {self.depth}
-            - Ambient Dimension: {self.ambient_dimension}
-            - Interval: {self.interval}
-            - Signature shapes: {[term.shape for term in self.signature]}"""
+        string = f"""{self.__class__.__name__}(
+    depth={self.depth},
+    ambient_dimension={self.ambient_dimension},
+    interval={self.interval},
+    signature_shapes={[term.shape for term in self.signature]}
+)"""
         return string
 
     def tree_flatten(self):

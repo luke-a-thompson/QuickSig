@@ -8,8 +8,6 @@ In general we are concerned with three indices:
 """
 
 import math
-import jax
-import jax.numpy as jnp
 
 
 def get_holder_alpha(H: float, epsilon: float = 0.01) -> float:

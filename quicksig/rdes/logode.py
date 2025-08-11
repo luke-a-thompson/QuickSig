@@ -7,7 +7,7 @@ from jax import jacrev
 from jax.experimental.ode import odeint
 from fbm import fbm
 
-from quicksig import get_log_signature
+from quicksig.signatures import compute_log_signature
 from quicksig.log_signature import duval_generator
 
 
