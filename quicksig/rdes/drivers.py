@@ -14,11 +14,12 @@ def bm_driver(key: jax.Array, timesteps: int, dim: int) -> Path:
     returns:
         A JAX array of shape (timesteps + 1, dim) representing the Brownian motion path.
     """
+    # Interpret `timesteps` as the number of increments; output has timesteps+1 samples
     dt = 1.0 / timesteps
     increments = jax.random.normal(key, (timesteps, dim)) * jnp.sqrt(dt)
-    path = jnp.cumsum(increments, axis=0)
-    path = jnp.concatenate([jnp.zeros((1, dim)), path])
-    return Path(path, (0, timesteps))
+    path = jnp.concatenate([jnp.zeros((1, dim)), jnp.cumsum(increments, axis=0)], axis=0)
+    # Half-open interval: number of samples equals end - start
+    return Path(path, (0, timesteps + 1))
 
 def correlate_bm_driver_against_reference(reference_path: Path, indep_path: Path, rho: float) -> Path:
     if reference_path.path.shape != indep_path.path.shape:
@@ -216,7 +217,7 @@ def riemann_liouville_driver(key: jax.Array, timesteps: int, hurst: float, bm_pa
     _, GX_tail = jax.lax.scan(step, jnp.zeros((dim,)), jnp.arange(1, timesteps + 1))
 
     # Prepend initial zero to obtain the full path (timesteps+1, dim)
-    return Path(jnp.concatenate([jnp.zeros((1, dim)), GX_tail], axis=0), (0, timesteps))
+    return Path(jnp.concatenate([jnp.zeros((1, dim)), GX_tail], axis=0), (0, timesteps + 1))
 
 if __name__ == "__main__":
     key = jax.random.PRNGKey(0)

@@ -78,7 +78,6 @@ def compute_path_signature(
 
     # Precompute $$S^k_{0,1} = (\Delta X_1)^{\otimes k}$$ for $$k = 1, \ldots, \text{depth}$$, len = k
     first_inc_tensor_exp_terms = restricted_tensor_exp(path_increments[0, :], depth=depth)
-    # assert False, first_inc_tensor_exp_terms[3].shape
 
     # Precompute scaled increments: $$\Delta X_t / k$$ for $$k = 2, \ldots, \text{depth}$$
     divisors = jnp.arange(2, depth + 1, dtype=path_increments.dtype).reshape(depth - 1, 1, 1)

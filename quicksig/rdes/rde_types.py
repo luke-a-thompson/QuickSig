@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Sequence, override
 import jax
+import jax.numpy as jnp
 
 @dataclass(frozen=True)
 class Path:
@@ -89,6 +90,25 @@ class Path:
     @override
     def __repr__(self) -> str:
         return self.__str__()
+    
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Path):
+            raise NotImplementedError(f"Cannot compare Path with {type(other)}.")
+        
+        return bool(jnp.allclose(self.path, other.path)) and self.interval == other.interval
+    
+    def __add__(self, other: "Path") -> "Path":
+        if self.ambient_dimension != other.ambient_dimension:
+            raise ValueError(f"Paths must have the same ambient dimension. Got {self.ambient_dimension} and {other.ambient_dimension}.")
+        if self.interval[1] != other.interval[0]:
+            raise ValueError(f"Paths must have contiguous intervals. Got {self.interval} and {other.interval}.")
+        if self.path.ndim != other.path.ndim:
+            raise ValueError(f"Paths must have the same number of dimensions. Got {self.path.ndim} and {other.path.ndim}.")
+
+        time_axis = 1 if self.path.ndim == 3 else 0
+        new_path = jnp.concatenate([self.path, other.path], axis=time_axis)
+        new_interval = (self.interval[0], other.interval[1])
+        return Path(path=new_path, interval=new_interval)
 
 jax.tree_util.register_pytree_node(
     Path,
@@ -115,13 +135,6 @@ if __name__ == "__main__":
     # Test with 2D input - no vmap needed
     stream_2d = jax.random.normal(jax.random.PRNGKey(42), (100, 3))
     path_2d = pathify(stream_2d)
-    print("2D input:")
-    print(f"Path shape: {path_2d.path.shape}")
-    print(f"Split result: {path_2d.split_at_time(50)}")
-    
-    # Test with 3D input - use vmap to handle each batch
-    stream_3d = jax.random.normal(jax.random.PRNGKey(42), (3, 100, 3))
-    paths_3d = jax.vmap(pathify, in_axes=0)(stream_3d)
-    print("\n3D input:")
-    print(f"Paths shape: {paths_3d.path.shape}")
-    print(f"Split result: {paths_3d.split_at_time(50)}")
+    split_paths = path_2d.split_at_time([33, 66])
+    print(split_paths)
+    print(split_paths[0] + split_paths[2])

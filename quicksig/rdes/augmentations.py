@@ -241,3 +241,5 @@ if __name__ == "__main__":
         for i, window in enumerate(windows_at_depth):
             print(f"  Window {i} (length {window.path.shape[0]}):")
             print(window)
+
+    print(non_overlapping_windower(path_obj, 8))

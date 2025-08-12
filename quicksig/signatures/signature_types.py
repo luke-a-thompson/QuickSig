@@ -27,6 +27,10 @@ class BaseSignature(ABC):
     signature_shapes={[term.shape for term in self.signature]}
 )"""
         return string
+    
+    @override
+    def __repr__(self) -> str:
+        return self.__str__()
 
     def tree_flatten(self):
         """Flattens the Pytree."""
