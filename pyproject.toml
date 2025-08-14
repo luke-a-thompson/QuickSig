@@ -32,7 +32,10 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-dependencies = ["jax>=0.6.0"]
+dependencies = [
+    "jax>=0.6.0",
+    "diffrax>=0.7.0",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/yourusername/quicksig"
