@@ -21,12 +21,29 @@ def bm_driver(key: jax.Array, timesteps: int, dim: int) -> Path:
     # Half-open interval: number of samples equals end - start
     return Path(path, (0, timesteps + 1))
 
+
 def correlate_bm_driver_against_reference(reference_path: Path, indep_path: Path, rho: float) -> Path:
+    """
+    Correlates a Brownian motion path against a reference path by their increments.
+
+    Args:
+        reference_path (Path): The reference path to correlate against.
+        indep_path (Path): The independent path to correlate.
+        rho (float): The correlation parameter.
+
+    Raises:
+        ValueError: If the reference path and indep path have different shapes.
+        ValueError: If the correlation parameter is not between -1 and 1.
+
+    Returns:
+        Path: The correlated path.
+    """
+
     if reference_path.path.shape != indep_path.path.shape:
         raise ValueError(f"Reference path and indep path must have the same shape. Got shapes {reference_path.path.shape} and {indep_path.path.shape}")
     if rho < -1 or rho > 1:
         raise ValueError(f"rho must be between -1 and 1. Got {rho}")
-    
+
     # Get increments of the independent paths
     reference_increments = jnp.diff(reference_path.path, axis=0)
     indep_increments = jnp.diff(indep_path.path, axis=0)
@@ -37,7 +54,7 @@ def correlate_bm_driver_against_reference(reference_path: Path, indep_path: Path
     correlated_path = initial_cond + jnp.cumsum(correlated_increments, axis=0)
     correlated_path = jnp.concatenate([initial_cond[None, :], correlated_path], axis=0)
     return Path(correlated_path, indep_path.interval)
-    
+
 
 def correlated_bm_drivers(indep_bm_paths: Path, corr_matrix: jax.Array) -> Path:
     """
@@ -54,7 +71,7 @@ def correlated_bm_drivers(indep_bm_paths: Path, corr_matrix: jax.Array) -> Path:
         corr_matrix: 2x2 correlation matrix.
     returns:
         A JAX array of shape (timesteps + 1, dim) representing the new correlated Brownian motion path.
-    """    
+    """
     num_paths = indep_bm_paths.path.shape[0]
     if corr_matrix.shape != (num_paths, num_paths):
         raise ValueError(f"Received {num_paths} paths, but got a correlation matrix with shape {corr_matrix.shape}. Corr matrix must be shape (num_paths, num_paths).")
@@ -73,7 +90,7 @@ def correlated_bm_drivers(indep_bm_paths: Path, corr_matrix: jax.Array) -> Path:
 
     # Cumsum to get the new path
     new_path = jnp.cumsum(correlated_increments, axis=1)
-    
+
     # Add zeros at the beginning to ensure Brownian motion starts at 0
     # Shape: (batch, time, nodes) -> add zeros at time=0
     zeros_shape = (new_path.shape[0], 1, new_path.shape[2])
@@ -218,6 +235,7 @@ def riemann_liouville_driver(key: jax.Array, timesteps: int, hurst: float, bm_pa
 
     # Prepend initial zero to obtain the full path (timesteps+1, dim)
     return Path(jnp.concatenate([jnp.zeros((1, dim)), GX_tail], axis=0), (0, timesteps + 1))
+
 
 if __name__ == "__main__":
     key = jax.random.PRNGKey(0)
