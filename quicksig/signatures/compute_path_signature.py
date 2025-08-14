@@ -55,7 +55,21 @@ def compute_path_signature(
     if path.ndim == 1:
         raise ValueError(f"QuickSig requires 2D arrays of shape [seq_len, n_features]. Got shape: {path.shape}. \n Consider using path.reshape(-1, 1).")
     seq_len, n_features = path.shape
-    assert seq_len > 1, "Sequence length must be greater than 1."
+    assert seq_len >= 0, "Sequence length must be non-negative."
+
+    # Handle degenerate paths with zero or one sample: all non-constant
+    # signature terms are zero and there are no stream/incremental outputs.
+    if seq_len <= 1:
+        if mode == "full":
+            zero_terms = [jnp.zeros((n_features ** (i + 1),), dtype=path.dtype) for i in range(depth)]
+            return Signature(
+                signature=zero_terms,
+                interval=(0, path.shape[0]),
+                ambient_dimension=n_features,
+                depth=depth,
+            )
+        elif mode in ("stream", "incremental"):
+            return []
 
     # Path increments: $$\Delta X_i = X_i - X_{i-1}$$ for $$i = 1, \ldots, N$$
     path_increments = path[1:, :] - path[:-1, :]
@@ -129,4 +143,3 @@ def compute_path_signature(
         ]
     else:
         raise ValueError(f"Invalid mode: {mode}")
-
