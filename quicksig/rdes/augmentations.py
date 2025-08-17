@@ -78,7 +78,7 @@ def basepoint_augmentation(path: Path) -> Path:
     """
     assert path.path.ndim == 2
     augmented_path_array = jnp.concatenate([jnp.zeros((1, path.ambient_dimension)), path.path], axis=0)
-    
+
     return Path(
         path=augmented_path_array,
         interval=(0, augmented_path_array.shape[0]),
@@ -196,7 +196,7 @@ def lead_lag_augmentation(leading_path: Path, lagging_path: Path) -> Path:
         raise ValueError("The intervals of the leading and lagging paths must be the same.")
 
     # Lag the lagging path by one time step.
-    lag = jnp.concatenate([lagging_path.path[0:1], lagging_path.path[:-1]], axis=0)
+    lag = jnp.concatenate([lagging_path.path[:1], lagging_path.path[:-1]], axis=0)
 
     # Concatenate the leading path and the lagged path.
     lead_lag_path_array = jnp.concatenate([leading_path.path, lag], axis=1)
