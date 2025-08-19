@@ -204,8 +204,7 @@ def riemann_liouville_driver(key: jax.Array, timesteps: int, hurst: float, bm_pa
     Cζ: jax.Array = jnp.sqrt(2 * ζ + 1)
 
     # Extra Gaussians Z_k independent of ΔW_k
-    key, sub = jax.random.split(key)
-    Z: jax.Array = jax.random.normal(sub, (timesteps, dim))
+    Z: jax.Array = jax.random.normal(key, (timesteps, dim))
 
     # Coefficients for the recent integral I_k
     a: float = Δ**ζ / (ζ + 1)
