@@ -125,19 +125,17 @@ def build_terms_with_leadlag(model_spec: BonesiniModelSpec, Z_control: dfx.Linea
     return dfx.MultiTerm(dfx.ODETerm(f0), dfx.ControlTerm(vf_Z, control=Z_control))
 
 
-def solve_bonesini_rde(
+def get_bonesini_rde_params(
     key: jax.Array,
     noise_timesteps: int,
-    rde_timesteps: int,
     model_spec: BonesiniModelSpec,
     s_0: float,
-) -> dfx.Solution:
+) -> tuple[jax.Array, dfx.MultiTerm]:
     """
     Generates a Bonesini RDE path.
     """
     key_W, key_B, key_V = jax.random.split(key, 3)
     ts_noise = jnp.linspace(0.0, 1.0, noise_timesteps + 1)
-    ts_rde = jnp.linspace(0.0, 1.0, rde_timesteps + 1)
 
     # Brownian for price
     W_path = bm_driver(key_W, noise_timesteps, 1)
@@ -160,11 +158,55 @@ def solve_bonesini_rde(
         raise ValueError("Unknown model for control construction.")
 
     Z = make_lead_lag_control(ts_noise, X=X, W=W)
-    term = build_terms_with_leadlag(model_spec, Z_control=Z)
+    terms = build_terms_with_leadlag(model_spec, Z_control=Z)
     y_0 = jnp.array([s_0, 0.0])
 
+    return y_0, terms
+
+
+def get_bonesini_noise_drivers(
+    key: jax.Array,
+    noise_timesteps: int,
+    model_spec: BonesiniModelSpec,
+    s_0: float,
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """
+    Generate initial condition and noise drivers (X, W) for the Bonesini RDE.
+    Returns (y0, X, W) as arrays so we can vmap over them easily.
+    """
+    key_W, key_B, key_V = jax.random.split(key, 3)
+
+    # Brownian for price
+    W_path = bm_driver(key_W, noise_timesteps, 1)
+    W = jnp.squeeze(W_path.path)
+
+    # Second driver (X): choose per model
+    if model_spec.name.startswith("Black-Scholes"):
+        X = jnp.zeros_like(W)
+    elif model_spec.name.startswith("Bergomi"):
+        B_path = bm_driver(key_B, noise_timesteps, 1)
+        Wv_corr = correlate_bm_driver_against_reference(W_path, B_path, model_spec.rho)
+        X = jnp.squeeze(Wv_corr.path)
+    elif model_spec.name.startswith("Rough Bergomi"):
+        B_path = bm_driver(key_B, noise_timesteps, 1)
+        W1_corr = correlate_bm_driver_against_reference(W_path, B_path, model_spec.rho)
+        X = jnp.squeeze(riemann_liouville_driver(key_V, noise_timesteps, model_spec.hurst, W1_corr).path)
+    else:
+        raise ValueError("Unknown model for control construction.")
+
+    y_0 = jnp.array([s_0, 0.0])
+    return y_0, X, W
+
+
+def solve_bonesini_rde_wong_zakai(y_0: jax.Array, terms: dfx.MultiTerm, noise_timesteps: int, rde_timesteps: int) -> dfx.Solution:
+    if noise_timesteps > rde_timesteps:
+        raise ValueError("Noise timesteps must be less than or equal to RDE timesteps.")
+
+    ts_noise = jnp.linspace(0.0, 1.0, noise_timesteps + 1)
+    ts_rde = jnp.linspace(0.0, 1.0, rde_timesteps + 1)
+
     solution = dfx.diffeqsolve(
-        terms=term,
+        terms=terms,
         solver=dfx.Heun(),
         t0=0.0,
         t1=1.0,
@@ -175,6 +217,21 @@ def solve_bonesini_rde(
         max_steps=None,
     )
 
+    return solution
+
+
+def solve_bonesini_rde_from_drivers(
+    y_0: jax.Array,
+    X: jax.Array,
+    W: jax.Array,
+    model_spec: BonesiniModelSpec,
+    noise_timesteps: int,
+    rde_timesteps: int,
+) -> dfx.Solution:
+    ts_noise = jnp.linspace(0.0, 1.0, noise_timesteps + 1)
+    Z = make_lead_lag_control(ts_noise, X=X, W=W)
+    terms = build_terms_with_leadlag(model_spec, Z_control=Z)
+    solution = solve_bonesini_rde_wong_zakai(y_0, terms, noise_timesteps, rde_timesteps)
     return solution
 
 
@@ -254,28 +311,35 @@ if __name__ == "__main__":
     bergomi_model_spec = make_bergomi_model_spec(v_0=0.0, rho=-0.848)
     rough_bergomi_model_spec = make_rough_bergomi_model_spec(v_0=0.04, nu=1.991, hurst=0.25, rho=-0.848)
 
-    key = jax.random.key(43)
     noise_timesteps = 1000
     rde_timesteps = 15000
 
-    # solution_bs = solve_bonesini_rde(key, timesteps, black_scholes_model_spec, s_0=1.0)
-    # solution_b = solve_bonesini_rde(key, timesteps, bergomi_model_spec, s_0=1.0)
-    # solution_rb = solve_bonesini_rde(key, timesteps, rough_bergomi_model_spec, s_0=1.0)
-    # solutions = [solution_bs, solution_b, solution_rb]
-    # model_specs = [black_scholes_model_spec, bergomi_model_spec, rough_bergomi_model_spec]
-    # plot_bonesini_rde(solutions, model_specs)
-
+    ## BLACK-SCHOLES
+    # Generate drivers for multiple paths
     keys = jax.random.split(jax.random.key(42), 1000)
-    bonesini_rde_vmap_bs = jax.vmap(lambda key: solve_bonesini_rde(key, noise_timesteps, noise_timesteps, black_scholes_model_spec, s_0=1.0))
-    solutions_bs = bonesini_rde_vmap_bs(keys)
+    y0_bs, X_bs, W_bs = jax.vmap(lambda key: get_bonesini_noise_drivers(key, noise_timesteps, black_scholes_model_spec, s_0=1.0))(keys)
+
+    # Vmap over solving (build terms inside)
+    solve_vmap_bs = jax.vmap(lambda y0, X, W: solve_bonesini_rde_from_drivers(y0, X, W, black_scholes_model_spec, noise_timesteps, rde_timesteps))
+    solutions_bs = solve_vmap_bs(y0_bs, X_bs, W_bs)
     plot_bonesini_monte_carlo(solutions_bs, black_scholes_model_spec)
 
+    ## BERGOMI
+    # Generate drivers for multiple paths
     keys = jax.random.split(jax.random.key(42), 1000)
-    bonesini_rde_vmap_b = jax.vmap(lambda key: solve_bonesini_rde(key, noise_timesteps, noise_timesteps, bergomi_model_spec, s_0=1.0))
-    solutions_b = bonesini_rde_vmap_b(keys)
+    y0_b, X_b, W_b = jax.vmap(lambda key: get_bonesini_noise_drivers(key, noise_timesteps, bergomi_model_spec, s_0=1.0))(keys)
+
+    # Vmap over solving
+    solve_vmap_b = jax.vmap(lambda y0, X, W: solve_bonesini_rde_from_drivers(y0, X, W, bergomi_model_spec, noise_timesteps, rde_timesteps))
+    solutions_b = solve_vmap_b(y0_b, X_b, W_b)
     plot_bonesini_monte_carlo(solutions_b, bergomi_model_spec)
 
-    keys = jax.random.split(jax.random.key(42), 3000)
-    bonesini_rde_vmap_rb = jax.vmap(lambda key: solve_bonesini_rde(key, noise_timesteps, rde_timesteps, rough_bergomi_model_spec, s_0=100.0))
-    solutions_rb = bonesini_rde_vmap_rb(keys)
+    ## ROUGH BERGOMI
+    # Generate drivers for multiple paths
+    keys = jax.random.split(jax.random.key(42), 1000)
+    y0_rb, X_rb, W_rb = jax.vmap(lambda key: get_bonesini_noise_drivers(key, noise_timesteps, rough_bergomi_model_spec, s_0=100.0))(keys)
+
+    # Vmap over solving
+    solve_vmap_rb = jax.vmap(lambda y0, X, W: solve_bonesini_rde_from_drivers(y0, X, W, rough_bergomi_model_spec, noise_timesteps, rde_timesteps))
+    solutions_rb = solve_vmap_rb(y0_rb, X_rb, W_rb)
     plot_bonesini_monte_carlo(solutions_rb, rough_bergomi_model_spec, use_log_price=True)

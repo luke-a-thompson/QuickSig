@@ -118,7 +118,7 @@ def rl_samples() -> Path:
     seed = 42
     timesteps = 1000
     hurst = 0.3
-    num_paths = 500
+    num_paths = 2000
 
     key = jax.random.key(seed)
     keys = jax.random.split(key, num_paths)
