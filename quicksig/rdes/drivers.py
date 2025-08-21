@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import jax.lax as lax
 from quicksig.rdes.rde_types import Path
 
 
@@ -163,84 +164,113 @@ def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float)
     return Path(paths.T, (0, timesteps))
 
 
-def riemann_liouville_driver(key: jax.Array, timesteps: int, hurst: float, bm_path: Path) -> Path:
+def riemann_liouville_driver(
+    key: jax.Array,
+    timesteps: int,
+    hurst: float,
+    bm_path,                      # Path: Brownian path for W1(t) INCLUDING t=0, shape (T+1, dim)
+    use_fft: bool = True,
+):
     """
-    Simulate a type-II (Riemann-Liouville) fractional Brownian motion (fBM)
-    path using the κ = 1 hybrid scheme of Bennedsen-Lunde-Pakkanen
-    (2017, Eq. (20)) on a *pre-computed* Brownian motion trajectory.
+    Hybrid scheme (kappa = 1) for the RL/type-II fBM driver used in rBergomi.
 
-    Parameters
-    ----------
-    key : jax.random.PRNGKey
-        Random seed used **only** for the additional Gaussian random
-        variables required by the scheme (independent of the supplied
-        Brownian path).
-    bm_path : jax.Array
-        Brownian motion trajectory **including** the initial point
-        ``t = 0``.  Expected shape ``(timesteps+1, dim)`` where
-        ``dim`` is the spatial dimension.  The driver derives the
-        Brownian increments internally.
-    hurst : float
-        Hurst parameter ``H ∈ (0,1)``.  Inside the algorithm we use
-        ``ζ = H - 0.5``.
+    Implements (for k = 1..T, Δ=1/T, α = H-1/2):
 
-    Returns
-    -------
-    jax.Array
-        Simulated Riemann-Liouville fBM path of shape ``(timesteps+1, dim)``
-        on the same grid as *bm_path*.
+        Y_k = sqrt(2H) * [ I_k  +  sum_{i=2}^k w_i ΔW_{k+1-i} ],
+
+    where
+        I_k  ≈ a ΔW_k + b Z_k,
+        a    = Δ^α / (α+1),
+        b^2  = Δ^{2α+1}/(2α+1)  -  a^2 Δ,
+        w_i  = Δ^α * ( i^{α+1} - (i-1)^{α+1} ) / (α+1).
+
+    Returns a Path with Y_0 = 0 and Y_k on the input grid.
     """
 
-    # Check dimensions
-    assert bm_path.num_timesteps == timesteps + 1, "bm_path must have shape (timesteps+1, dim)"
-    dim: int = bm_path.ambient_dimension
+    assert 0.0 < hurst < 0.5, "Hybrid κ=1 is used for H in (0, 1/2)."
+    assert bm_path.num_timesteps == timesteps + 1, "bm_path must have shape (timesteps+1, dim)."
 
-    Δ: float = 1.0 / timesteps
+    dim = bm_path.ambient_dimension
+    Δ   = 1.0 / timesteps
+    α   = hurst - 0.5
+    sqrt2H = jnp.sqrt(2.0 * hurst)
 
-    # Brownian increments ΔW_k on [t_{k-1}, t_k]
-    ΔW: jax.Array = jnp.diff(bm_path.path, axis=0)  # (timesteps, dim)
+    # Brownian increments ΔW_k, k=1..T (var = Δ)
+    dW = jnp.diff(bm_path.path, axis=0)                         # (T, dim)
 
-    ζ: float = hurst - 0.5
-    Cζ: jax.Array = jnp.sqrt(2 * ζ + 1)
+    # Recent-interval integral I_k = a ΔW_k + b Z_k (Z ⟂ ΔW, i.i.d. N(0,1))
+    a = (Δ ** α) / (α + 1.0)
+    var_I = (Δ ** (2.0 * α + 1.0)) / (2.0 * α + 1.0)
+    # numerical guard in case of float underflow:
+    b = jnp.sqrt(jnp.maximum(var_I - (a * a) * Δ, 0.0))
 
-    # Extra Gaussians Z_k independent of ΔW_k
-    Z: jax.Array = jax.random.normal(key, (timesteps, dim))
+    Z = jax.random.normal(key, shape=dW.shape)                  # (T, dim)
+    I = a * dW + b * Z                                          # (T, dim)
 
-    # Coefficients for the recent integral I_k
-    a: float = Δ**ζ / (ζ + 1)
-    var_I: float = Δ ** (2 * ζ + 1) / (2 * ζ + 1)
-    b: jax.Array = jnp.sqrt(var_I - (a**2) * Δ)
+    # Historical weights w_i for i=2..T
+    i = jnp.arange(2, timesteps + 1, dtype=dW.dtype)            # (T-1,)
+    w = (Δ ** α) * (i ** (α + 1.0) - (i - 1.0) ** (α + 1.0)) / (α + 1.0)  # (T-1,)
 
-    I: jax.Array = a * ΔW + b * Z  # shape (timesteps, dim)
+    # Convolution Y2_k = sum_{i=2}^k w_i ΔW_{k+1-i}, with Y2_1 = 0.
+    # We compute this per dimension. For speed and exact indexing, use FFT.
+    def conv_full_1d(w, x):
+        # full convolution y[n] = sum_k w[k]*x[n-k]; we only need the first (T-1) outputs
+        L = int(2 ** jnp.ceil(jnp.log2(w.shape[0] + x.shape[0] - 1)))
+        wf = jnp.fft.rfft(jnp.pad(w, (0, L - w.shape[0])))
+        xf = jnp.fft.rfft(jnp.pad(x, (0, L - x.shape[0])))
+        y  = jnp.fft.irfft(wf * xf, n=L)[: w.shape[0] + x.shape[0] - 1]
+        return y
 
-    # Pre-compute weights b_i^∗  (i = 2,…,N)
-    i: jax.Array = jnp.arange(2, timesteps + 1)
-    b_star: jax.Array = (Δ**ζ / (ζ + 1)) * (i ** (ζ + 1) - (i - 1) ** (ζ + 1))  # (timesteps-1,)
+    if use_fft:
+        # x is ΔW[0:T-1] (i.e., ΔW_1..ΔW_{T-1}); Y2_k for k>=2 is y[k-2]
+        def per_dim(x):
+            y = conv_full_1d(w, x[:-1])                         # length 2T-3
+            return jnp.concatenate([jnp.zeros((1,), x.dtype), y[: timesteps - 1]])  # (T,)
 
-    # Prefix-convolution via an O(N) scan
-    def step(carry: jax.Array, k: jax.Array) -> tuple[jax.Array, jax.Array]:
-        """Compute one step of the prefix-convolution (vector-valued)."""
+        Y2 = jnp.stack([per_dim(dW[:, d]) for d in range(dim)], axis=1)  # (T, dim)
+    else:
+        # O(T^2) fallback (fine for small T)
+        def hist_scan(carry, k):  # k = 1..T
+            # k==1 -> Y2=0; else Y2_k = sum_{j=0}^{k-2} w[j]*ΔW_{k-1-j}
+            def body():
+                j_idx = jnp.arange(0, k - 1)
+                return (w[j_idx] @ dW[k - 1 - j_idx, :])  # (dim,)
+            Y2k = lax.cond(k > 1, body, lambda: jnp.zeros((dim,), dW.dtype))
+            return carry, Y2k
 
-        def update_hist() -> jax.Array:
-            return carry + b_star[k - 2] * ΔW[timesteps - k]
+        _, Y2 = lax.scan(hist_scan, None, jnp.arange(1, timesteps + 1))
+        # Y2 shape (T, dim)
 
-        hist: jax.Array = jax.lax.cond(k > 1, update_hist, lambda: jnp.zeros_like(carry))
-
-        GX_k: jax.Array = Cζ * (I[k - 1] + hist)
-        return hist, GX_k
-
-    # Initial carry is a zero vector of shape (dim,)
-    _, GX_tail = jax.lax.scan(step, jnp.zeros((dim,)), jnp.arange(1, timesteps + 1))
-
-    # Prepend initial zero to obtain the full path (timesteps+1, dim)
-    return Path(jnp.concatenate([jnp.zeros((1, dim)), GX_tail], axis=0), (0, timesteps + 1))
-
+    # Assemble Y_k values and prepend Y_0=0
+    Y_tail = sqrt2H * (I + Y2)                                  # (T, dim)
+    Y_path = jnp.concatenate([jnp.zeros((1, dim), Y_tail.dtype), Y_tail], axis=0)
+    return Path(Y_path, bm_path.interval)
 
 if __name__ == "__main__":
-    key = jax.random.PRNGKey(0)
-    fbm_path = fractional_bm_driver(key, timesteps=100, dim=1, hurst=0.5)
-    print(fbm_path)
+    # Example: generate and plot 1000 Riemann–Liouville drivers using vmap
+    import matplotlib.pyplot as plt
 
-    bm_path_for_rl = bm_driver(key, timesteps=100, dim=1)
-    rl_path = riemann_liouville_driver(key, timesteps=100, hurst=0.5, bm_path=bm_path_for_rl)
-    print(rl_path)
+    batch_size = 1000
+    timesteps = 512
+    dim = 1
+    hurst = 0.5
+
+    base_key = jax.random.PRNGKey(0)
+    key_bm, key_rl = jax.random.split(base_key)
+    bm_keys = jax.random.split(key_bm, batch_size)
+    rl_keys = jax.random.split(key_rl, batch_size)
+
+    batched_bm_paths = jax.vmap(bm_driver, in_axes=(0, None, None))(bm_keys, timesteps, dim)
+    batched_rl_paths = jax.vmap(riemann_liouville_driver, in_axes=(0, None, None, 0))(rl_keys, timesteps, hurst, batched_bm_paths)
+
+    rl_paths_np = jax.device_get(batched_rl_paths.path)
+
+    plt.figure(figsize=(10, 6))
+    for i in range(batch_size):
+        plt.plot(rl_paths_np[i, :, 0], linewidth=0.5, alpha=0.15, color="tab:blue")
+    plt.title(f"Riemann–Liouville drivers (H={hurst}, N={timesteps}, batch={batch_size})")
+    plt.xlabel("Time step")
+    plt.ylabel("Value")
+    plt.tight_layout()
+    plt.savefig("docs/assets/riemann_liouville_monte_carlo.png", dpi=150)
+    plt.close()

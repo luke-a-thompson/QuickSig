@@ -1,12 +1,11 @@
 from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
+from jax import Array
 from quicksig.rdes.drivers import bm_driver, correlate_bm_driver_against_reference, riemann_liouville_driver
-from quicksig.rdes.rde_types import Path
-from typing import Callable, Literal, Optional
+from typing import Callable
 import diffrax as dfx
 from diffrax import LinearInterpolation
-import matplotlib.pyplot as plt
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,22 +31,18 @@ class BonesiniModelSpec:
     """
 
     name: str
-    state: Literal["Price", "PriceVol"]  # Price only vs coupled price and volatility
-    v_input: Literal["constant", "lagged_RL", "state"]
-    needs_X_control: bool
 
     hurst: float
     v_0: float
     nu: float | None
     rho: float | None
 
-    sigma: Optional[Callable[[float, float, float], float]]  # Multiplies dW_t in dS
-    g: Optional[Callable[[float, float, float], float]]  # dt drift in dS
+    sigma: Callable[[Array, Array, float], Array] | None  # Multiplies dW_t in dS
+    g: Callable[[Array, Array, float], Array] | None  # dt drift in dS
 
-    # Only used for PriceVol state
-    tau: Optional[Callable[[float, float, float], float]]  # Multiplies dX_t in dV
-    varsigma: Optional[Callable[[float, float, float], float]]  # Multiplies dW_t in dV
-    h: Optional[Callable[[float, float, float], float]]  # dt drift in dV
+    tau: Callable[[Array, Array, float], Array] | None  # Multiplies dX_t in dV
+    varsigma: Callable[[Array, Array, float], Array] | None  # Multiplies dW_t in dV
+    h: Callable[[Array, Array, float], Array] | None  # dt drift in dV
 
     def __post_init__(self):
         if self.hurst <= 0 or self.hurst >= 1:
@@ -59,149 +54,123 @@ class BonesiniModelSpec:
         if self.rho is not None and (self.rho < -1 or self.rho > 1):
             raise ValueError(f"rho must be between -1 and 1. Got {self.rho}")
 
-def build_terms(
-        model_spec: BonesiniModelSpec,
-        W_control: dfx.AbstractPath,
-        v_eval: Callable[[float], float],
-        X_control: dfx.AbstractPath | None,
-        ):
+
+def make_lead_lag_control(ts: jax.Array, X: jax.Array, W: jax.Array) -> dfx.LinearInterpolation:
     """
-    Builds diffrax terms for the Bonesini RDE.
-
-    Args:
-        model_spec: Specification for the Bonesini RDE.
-        W_control: Control for the W Brownian motion.
-        v_eval: Function to evaluate the volatility at a given time.
-        X_control: Control for the X Brownian motion.
-
+    Lead–lag construction for the 2D control Z = (X^lag, W).
+    Inputs:
+      ts: shape (N+1,)
+      X, W: shape (N+1,) or (N+1, d) – here 1D per process is fine
     Returns:
-        - For state "Price" we return terms with ControlTerm(W) + ODETerm
-        - For state "PriceVol" we return terms with ControlTerm(W) + ControlTerm(X) + ODETerm
+      LinearInterpolation on staggered grid τ of length 2N+1 with values Z(τ_m) in R^2.
     """
-    match model_spec.state:
-        case "Price":
-            def vf_W(t: float, y: float, args: tuple[float, float, float]) -> float:
-                """
-                Vector field integrated against the W Brownian path (dW).
-                """
-                s = y
-                v = v_eval(t)
-                return model_spec.sigma(s, v, t) if model_spec.sigma is not None else 0.0
-            def f0(t: float, y: float, args: tuple[float, float, float]) -> float:
-                """
-                Vector field integrated against time (dt). This is the drift term.
-                """
-                s = y
-                v = v_eval(t)
-                return model_spec.g(s, v, t) if model_spec.g is not None else 0.0
-            
-            terms = [dfx.ODETerm(f0), dfx.ControlTerm(vf_W, control=W_control)]
-            return dfx.MultiTerm(*terms)
-        case "PriceVol":
-            def vf_W(t: float, y: jax.Array, args: tuple[float, float, float]) -> jax.Array:
-                """
-                Vector fields integrated against the W Brownian path (dW).
-                """
-                s, v_state = y[0], y[1]
-                v = v_state
-                price_term = model_spec.sigma(s, v, t) if model_spec.sigma is not None else 0.0
-                vol_term = model_spec.varsigma(s, v, t) if model_spec.varsigma is not None else 0.0
-                return jnp.array([price_term, vol_term])
-            def vf_X(t: float, y: jax.Array, args: tuple[float, float, float]) -> jax.Array:
-                """
-                Vector fields integrated against the X Brownian path (dX).
-                """
-                s, v_state = y[0], y[1]
-                v = v_state
-                price_term = 0.0
-                vol_term = model_spec.tau(s, v, t) if model_spec.tau is not None else 0.0
-                return jnp.array([price_term, vol_term])
-            def f0(t: float, y: jax.Array, args: tuple[float, float, float]) -> jax.Array:
-                """
-                Vector field integrated against time (dt). This is the drift term.
-                """
-                s, v_state = y[0], y[1]
-                v = v_state
-                price_term = model_spec.g(s, v, t) if model_spec.g is not None else 0.0
-                vol_term = model_spec.h(s, v, t) if model_spec.h is not None else 0.0
-                return jnp.array([price_term, vol_term])
-            
-            terms = [dfx.ODETerm(f0), dfx.ControlTerm(vf_W, control=W_control)]
-            if model_spec.needs_X_control:
-                if X_control is None:
-                    raise ValueError("State=PriceVol with needs_X_control=True requires an X_control interpolation path.")
-                terms.append(dfx.ControlTerm(vf_X, control=X_control))
-            return dfx.MultiTerm(*terms)
-        case _:
-            raise ValueError(f"Invalid state: {model_spec.state}. Choose from 'Price' or 'PriceVol'.")
+    ts = jnp.asarray(ts)
+    X = jnp.asarray(X).reshape(-1)
+    W = jnp.asarray(W).reshape(-1)
+    N = ts.shape[0] - 1
+    Δ = ts[1] - ts[0]
+
+    # Staggered times: τ_0=t_0; τ_{2k}=t_k, τ_{2k+1}=t_k+Δ/2, τ_{2N}=t_N
+    τ_even = ts[:-1]
+    τ_mid = ts[:-1] + 0.5 * Δ
+    τ = jnp.concatenate([jnp.stack([τ_even, τ_mid], axis=1).reshape(-1), ts[-1:]], axis=0)  # (2N+1,)
+
+    # Values:
+    # at τ_{2k}   : (X_{t_k},   W_{t_k})
+    # at τ_{2k+1} : (X_{t_k},   W_{t_{k+1}})
+    # at τ_{2k+2} : (X_{t_{k+1}}, W_{t_{k+1}})
+    Z_even = jnp.stack([X[:-1], W[:-1]], axis=1)  # (N, 2)
+    Z_mid = jnp.stack([X[:-1], W[1:]], axis=1)  # (N, 2)
+    Z_last = jnp.stack([X[-1], W[-1]])[None, :]  # (1, 2)
+    Z = jnp.concatenate([jnp.reshape(jnp.stack([Z_even, Z_mid], axis=1), (2 * N, 2)), Z_last], axis=0)  # (2N+1, 2)
+
+    return dfx.LinearInterpolation(ts=τ, ys=Z)
 
 
-def bonesini_rde(
+def build_terms_with_leadlag(model_spec: BonesiniModelSpec, Z_control: dfx.LinearInterpolation):
+    def f0(t: float, y: jax.Array, args: tuple[float, float, float]) -> jax.Array:
+        """
+        ODE terms integrated against time (dt).
+        """
+        s, v = y[0], y[1]
+        price_dt = model_spec.g(s, v, t) if model_spec.g else 0.0
+        vol_dt = model_spec.h(s, v, t) if model_spec.h else 0.0
+        # Row 0 corresponds to price equation, row 1 to volatility equation.
+        # Row 0 receives price drift, row 1 receives volatility drift.
+        return jnp.array([price_dt, vol_dt])
+
+    def vf_Z(t: float, y: jax.Array, args: tuple[float, float, float]) -> jax.Array:
+        """
+        Control terms integrated against the lead-lag control Z.
+        """
+        s, v = y[0], y[1]
+        # columns: [X, W]
+        col_X = jnp.array(
+            [
+                0.0,
+                (model_spec.tau(s, v, t) if model_spec.tau else 0.0),
+            ]
+        )
+        col_W = jnp.array(
+            [
+                (model_spec.sigma(s, v, t) if model_spec.sigma else 0.0),
+                (model_spec.varsigma(s, v, t) if model_spec.varsigma else 0.0),
+            ]
+        )
+        # Control matrix [0, sigma; tau, varsigma]. Row 0 corresponds to price equation, row 1 to volatility equation.
+        # Price receives 0 * dX, sigma * dW
+        # Volatility receives tau * dX, varsigma * dW
+        return jnp.stack([col_X, col_W], axis=1)  # (state dim, control dim)
+
+    return dfx.MultiTerm(dfx.ODETerm(f0), dfx.ControlTerm(vf_Z, control=Z_control))
+
+
+def solve_bonesini_rde(
     key: jax.Array,
-    timesteps: int,
+    noise_timesteps: int,
+    rde_timesteps: int,
     model_spec: BonesiniModelSpec,
-    S0: float,
+    s_0: float,
 ) -> dfx.Solution:
     """
     Generates a Bonesini RDE path.
     """
     key_W, key_B, key_V = jax.random.split(key, 3)
+    ts_noise = jnp.linspace(0.0, 1.0, noise_timesteps + 1)
+    ts_rde = jnp.linspace(0.0, 1.0, rde_timesteps + 1)
 
-    ts = jnp.linspace(0.0, 1.0, timesteps + 1)
-    delta_t = float(ts[1] - ts[0])
+    # Brownian for price
+    W_path = bm_driver(key_W, noise_timesteps, 1)
+    W = jnp.squeeze(W_path.path)
 
-    # Leading Brownian W_t for S_t
-    W_path = bm_driver(key_W, timesteps, 1)
-    W_interp_leading = LinearInterpolation(ts=ts, ys=jnp.squeeze(W_path.path))
-
-    X_interp = None
-    V_interp_lagged = None
-    if model_spec.v_input in ["lagged_RL", "state"]:
-        B_path = bm_driver(key_B, timesteps, 1)
-        if model_spec.hurst == 0.5:
-            X_path = jnp.squeeze(B_path.path)
-        else:
-            W_path_correlated = correlate_bm_driver_against_reference(W_path, B_path, model_spec.rho)
-            X_path = jnp.squeeze(riemann_liouville_driver(key_V, timesteps, model_spec.hurst, W_path_correlated).path)
-        X_interp = LinearInterpolation(ts=ts, ys=X_path)
-        if model_spec.v_input == "lagged_RL":
-            V_path_lagged = jnp.concatenate([X_path[:1], X_path[:-1]], axis=0)
-            V_interp_lagged = LinearInterpolation(ts=ts, ys=V_path_lagged)
-
-    if model_spec.state == "Price":
-        match model_spec.v_input:
-            case "constant":
-                v_eval = lambda t: model_spec.v_0
-            case "lagged_RL":
-                assert V_interp_lagged is not None, "V_interp_lagged is not set."
-                v_eval = lambda t: V_interp_lagged.evaluate(t)
-            case _:
-                raise ValueError(f"For state='price', v_input must be 'constant' or 'lagged_RL'. Invalid v_input: {model_spec.v_input}.")
+    # Second driver (X): choose per model
+    if model_spec.name.startswith("Black-Scholes"):
+        X = jnp.zeros_like(W)  # dummy, not a stoch vol
+    elif model_spec.name.startswith("Bergomi"):
+        # X = W^V, correlated with W (price) by rho
+        B_path = bm_driver(key_B, noise_timesteps, 1)
+        Wv_corr = correlate_bm_driver_against_reference(W_path, B_path, model_spec.rho)
+        X = jnp.squeeze(Wv_corr.path)
+    elif model_spec.name.startswith("Rough Bergomi"):
+        # X = RL integral of a Brownian correlated with W
+        B_path = bm_driver(key_B, noise_timesteps, 1)
+        W1_corr = correlate_bm_driver_against_reference(W_path, B_path, model_spec.rho)
+        X = jnp.squeeze(riemann_liouville_driver(key_V, noise_timesteps, model_spec.hurst, W1_corr).path)
     else:
-        v_eval = lambda t: jnp.array(0.0)
+        raise ValueError("Unknown model for control construction.")
 
-    match model_spec.v_input:
-        case "constant":
-            v_eval = lambda t: model_spec.v_0
-        case "lagged_RL":
-            assert V_interp_lagged is not None, "V_interp_lagged is not set."
-            v_eval = lambda t: V_interp_lagged.evaluate(t)
-        case "state":
-            v_eval = lambda t: jnp.array(0.0)
-        case _:
-            raise ValueError(f"Invalid v_input: {model_spec.v_input}. Choose from 'constant', 'lagged_RL', or 'state'.")
-
-    term = build_terms(model_spec=model_spec, W_control=W_interp_leading, v_eval=v_eval, X_control=X_interp)
-    y_0 = S0 if model_spec.state == "Price" else jnp.array([S0, model_spec.v_0])
+    Z = make_lead_lag_control(ts_noise, X=X, W=W)
+    term = build_terms_with_leadlag(model_spec, Z_control=Z)
+    y_0 = jnp.array([s_0, 0.0])
 
     solution = dfx.diffeqsolve(
         terms=term,
         solver=dfx.Heun(),
         t0=0.0,
         t1=1.0,
-        dt0=delta_t,
+        dt0=ts_rde[1] - ts_rde[0],
         y0=y_0,
-        saveat=dfx.SaveAt(ts=ts),
+        saveat=dfx.SaveAt(ts=ts_noise),
         stepsize_controller=dfx.ConstantStepSize(),
         max_steps=None,
     )
@@ -213,28 +182,29 @@ def make_black_scholes_model_spec(v_0: float) -> BonesiniModelSpec:
     """
     Makes a Black-Scholes model specification.
     """
+    sigma = lambda s, v, t: s * jnp.sqrt(v_0)
+    g = lambda s, v, t: -0.5 * s * v_0
+
     return BonesiniModelSpec(
         name="Black-Scholes",
-        state="Price",
-        v_input="constant",
-        needs_X_control=False,
-        hurst = 0.5,
-        v_0 = v_0,
-        nu = 0.0,
-        rho = 0.0,
-        sigma = lambda s_t, v_t, t: (s_t * 1) * jnp.sqrt(v_t),
-        g = lambda s_t, v_t, t: -0.5 * s_t * v_0,
-        tau = lambda s_t, v_t, t: 0.0,
-        varsigma = lambda s_t, v_t, t: 0.0,
-        h = lambda s_t, v_t, t: 0.0,
+        hurst=0.5,
+        v_0=v_0,
+        nu=0.0,
+        rho=0.0,
+        sigma=sigma,
+        g=g,
+        tau=None,
+        varsigma=None,
+        h=None,
     )
+
 
 def make_bergomi_model_spec(v_0: float, rho: float) -> BonesiniModelSpec:
     """
     Makes a Bergomi model specification.
     """
     rho_bar = jnp.sqrt(1.0 - rho**2)
-    
+
     sigma = lambda s, v, t: s * jnp.exp(v)
     g = lambda s, v, t: -0.5 * s * (jnp.exp(2 * v) + (rho * v * jnp.exp(v)))
     tau = lambda s, v, t: rho_bar * v
@@ -243,42 +213,39 @@ def make_bergomi_model_spec(v_0: float, rho: float) -> BonesiniModelSpec:
 
     return BonesiniModelSpec(
         name="Bergomi",
-        state="PriceVol",
-        v_input="state",
-        needs_X_control=True,
-        hurst = 0.5,
-        v_0 = v_0,
-        nu = None,
-        rho = rho,
-        sigma = sigma,
-        g = g,
-        tau = tau,
-        varsigma = varsigma,
-        h = h,
+        hurst=0.5,
+        v_0=v_0,
+        nu=None,
+        rho=rho,
+        sigma=sigma,
+        g=g,
+        tau=tau,
+        varsigma=varsigma,
+        h=h,
     )
 
-def make_rough_bergomi_model_spec(v_0: float, nu: float, hurst: float, rho: float) -> BonesiniModelSpec:
-    gamma_term = jax.scipy.special.gamma(hurst + 0.5)
-    C = (nu**2) / (gamma_term**2)
 
-    sigma = lambda s, v, t: s * jnp.sqrt(v_0) * jnp.exp(nu * v -0.5 * C * (t**(2.0 * hurst)))
-    g = lambda s, v, t: -0.5 * s * v_0 * jnp.exp((2.0 * nu * v) - C * (t ** (2.0 * hurst)))
+def make_rough_bergomi_model_spec(v_0: float, nu: float, hurst: float, rho: float) -> BonesiniModelSpec:
+    # Hybrid RL normalisation: Var[V_t] = t^{2H}  ⇒  C = 2 nu^2
+
+    # PRICE coefficients (not log-price)
+    sigma = lambda s, v, t: s * jnp.sqrt(v_0) * jnp.exp(0.5 * nu * v - 0.25 * (nu**2) * (t ** (2.0 * hurst)))
+    g = lambda s, v, t: -0.5 * s * v_0 * jnp.exp(nu * v - 0.5 * (nu**2) * (t ** (2.0 * hurst)))
+    tau = lambda s, v, t: 1.0  # dV = dX
 
     return BonesiniModelSpec(
         name="Rough Bergomi",
-        state="Price",
-        v_input="lagged_RL",
-        needs_X_control=False,
-        hurst = hurst,
-        v_0 = v_0,
-        nu = nu,
-        rho = rho,
-        sigma = sigma,
-        g = g,
-        tau = None,
-        varsigma = None,
-        h = None,
+        hurst=hurst,
+        v_0=v_0,
+        nu=nu,
+        rho=rho,
+        sigma=sigma,
+        g=g,
+        tau=tau,
+        varsigma=None,
+        h=None,
     )
+
 
 if __name__ == "__main__":
     from quicksig.rde_bench.plot_rde import plot_bonesini_rde, plot_bonesini_monte_carlo
@@ -288,31 +255,27 @@ if __name__ == "__main__":
     rough_bergomi_model_spec = make_rough_bergomi_model_spec(v_0=0.04, nu=1.991, hurst=0.25, rho=-0.848)
 
     key = jax.random.key(43)
-    timesteps = 5000
+    noise_timesteps = 1000
+    rde_timesteps = 15000
 
-    solution_bs = bonesini_rde(key, timesteps, black_scholes_model_spec, S0=1.0)
-    solution_b = bonesini_rde(key, timesteps, bergomi_model_spec, S0=1.0)
+    # solution_bs = solve_bonesini_rde(key, timesteps, black_scholes_model_spec, s_0=1.0)
+    # solution_b = solve_bonesini_rde(key, timesteps, bergomi_model_spec, s_0=1.0)
+    # solution_rb = solve_bonesini_rde(key, timesteps, rough_bergomi_model_spec, s_0=1.0)
+    # solutions = [solution_bs, solution_b, solution_rb]
+    # model_specs = [black_scholes_model_spec, bergomi_model_spec, rough_bergomi_model_spec]
+    # plot_bonesini_rde(solutions, model_specs)
 
-    solution_rb = bonesini_rde(key, timesteps, rough_bergomi_model_spec, S0=1.0)
-
-    solutions = [solution_bs, solution_b, solution_rb]
-    model_specs = [black_scholes_model_spec, bergomi_model_spec, rough_bergomi_model_spec]
-    plot_bonesini_rde(solutions, model_specs)
-
-    # Monte Carlo simulation over rough Bergomi, 100 different seeds, plot separately
     keys = jax.random.split(jax.random.key(42), 1000)
-    bonesini_rde_vmap_rb = jax.vmap(lambda key: bonesini_rde(key, timesteps, rough_bergomi_model_spec, S0=1.0))
-    solutions_rb = bonesini_rde_vmap_rb(keys)
-    plot_bonesini_monte_carlo(solutions_rb, rough_bergomi_model_spec)
+    bonesini_rde_vmap_bs = jax.vmap(lambda key: solve_bonesini_rde(key, noise_timesteps, noise_timesteps, black_scholes_model_spec, s_0=1.0))
+    solutions_bs = bonesini_rde_vmap_bs(keys)
+    plot_bonesini_monte_carlo(solutions_bs, black_scholes_model_spec)
 
-    # Monte Carlo simulation over Bergomi to observe the log-normal distribution
-    keys_b = jax.random.split(jax.random.key(44), 1000)
-    bonesini_rde_vmap_b = jax.vmap(lambda key: bonesini_rde(key, timesteps, bergomi_model_spec, S0=1.0))
-    solutions_b = bonesini_rde_vmap_b(keys_b)
+    keys = jax.random.split(jax.random.key(42), 1000)
+    bonesini_rde_vmap_b = jax.vmap(lambda key: solve_bonesini_rde(key, noise_timesteps, noise_timesteps, bergomi_model_spec, s_0=1.0))
+    solutions_b = bonesini_rde_vmap_b(keys)
     plot_bonesini_monte_carlo(solutions_b, bergomi_model_spec)
 
-    # # Monte Carlo simulation over Black-Scholes to observe the log-normal distribution
-    # keys_bs = jax.random.split(jax.random.key(43), 1000) # Use more paths for a clearer distribution
-    # bonesini_rde_vmap_bs = jax.vmap(lambda key: bonesini_rde(key, timesteps, black_scholes_model_spec, S0=1.0))
-    # solutions_bs = bonesini_rde_vmap_bs(keys_bs)
-    # plot_bonesini_monte_carlo(solutions_bs, black_scholes_model_spec)
+    keys = jax.random.split(jax.random.key(42), 3000)
+    bonesini_rde_vmap_rb = jax.vmap(lambda key: solve_bonesini_rde(key, noise_timesteps, rde_timesteps, rough_bergomi_model_spec, s_0=100.0))
+    solutions_rb = bonesini_rde_vmap_rb(keys)
+    plot_bonesini_monte_carlo(solutions_rb, rough_bergomi_model_spec, use_log_price=True)

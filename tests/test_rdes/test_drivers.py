@@ -134,6 +134,16 @@ def rl_samples() -> Path:
     return rl_paths
 
 
+def test_rl_zero_mean_at_all_times(rl_samples: Path) -> None:
+    r"""
+    For each fixed time \(t_k\), the RL process has zero mean: \(\E[V_{t_k}] = 0\).
+    We average across simulated paths and check \(\bar V_{t_k} \approx 0\) for all \(k\).
+    """
+    paths = rl_samples.path  # Shape: (num_paths, timesteps+1, dim)
+    means_at_times = jnp.mean(paths, axis=0)
+    assert jnp.allclose(means_at_times, 0.0, atol=0.1)
+
+
 def test_rl_marginal_variance_scaling(rl_samples: Path) -> None:
     r"""
     Marginal variance of RL process \(V_t\): for Hurst \(H\),
@@ -159,10 +169,10 @@ def test_rl_marginal_variance_scaling(rl_samples: Path) -> None:
             theoretical_var = t ** (2 * hurst)
 
             # Ratio should be approximately 1
-            ratio = var_k / theoretical_var
-            tolerance = 3.0 / jnp.sqrt(num_paths)
+            ratio = jnp.squeeze(var_k) / theoretical_var  # make scalar
+            tolerance = 3.0 / (num_paths**0.5)
 
-            assert jnp.allclose(ratio, 1.0, atol=tolerance), f"Variance ratio at t={float(t):.3f} is {float(ratio):.3f}, expected ~1.0 ± {tolerance:.3f}"
+            assert jnp.isclose(ratio, 1.0, atol=tolerance), f"Variance ratio at t={float(t):.3f} is {float(ratio):.3f}, expected ~1.0 ± {tolerance:.3f}"
 
 
 def test_rl_gaussianity(rl_samples: Path) -> None:
