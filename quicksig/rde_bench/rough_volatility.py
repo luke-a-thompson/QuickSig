@@ -45,13 +45,21 @@ class BonesiniModelSpec:
     h: Callable[[Array, Array, float], Array] | None  # dt drift in dV
 
     def __post_init__(self):
-        if self.hurst <= 0 or self.hurst >= 1:
+        # When constructed inside JAX transformations (vmap/jit), parameters may be
+        # JAX tracers. Avoid Python boolean checks in that case.
+        def _is_jax_array(x):
+            return isinstance(x, jax.Array)
+
+        if _is_jax_array(self.hurst) or _is_jax_array(self.v_0) or (self.nu is not None and _is_jax_array(self.nu)) or (self.rho is not None and _is_jax_array(self.rho)):
+            return
+
+        if not (0.0 < float(self.hurst) < 1.0):
             raise ValueError(f"Hurst must be between 0 and 1. Got {self.hurst}")
-        if self.v_0 < 0:
+        if float(self.v_0) < 0.0:
             raise ValueError(f"v_0 must be positive. Got {self.v_0}")
-        if self.nu is not None and self.nu < 0:
+        if self.nu is not None and float(self.nu) < 0.0:
             raise ValueError(f"nu must be non-negative. Got {self.nu}")
-        if self.rho is not None and (self.rho < -1 or self.rho > 1):
+        if self.rho is not None and not (-1.0 <= float(self.rho) <= 1.0):
             raise ValueError(f"rho must be between -1 and 1. Got {self.rho}")
 
 
@@ -263,10 +271,10 @@ def make_bergomi_model_spec(v_0: float, rho: float) -> BonesiniModelSpec:
     rho_bar = jnp.sqrt(1.0 - rho**2)
 
     sigma = lambda s, v, t: s * jnp.exp(v)
-    g = lambda s, v, t: -0.5 * s * (jnp.exp(2 * v) + (rho * v * jnp.exp(v)))
+    g = lambda s, v, t: 0.0
     tau = lambda s, v, t: rho_bar * v
     varsigma = lambda s, v, t: rho * v
-    h = lambda s, v, t: -0.5 * v
+    h = lambda s, v, t: 0.0
 
     return BonesiniModelSpec(
         name="Bergomi",
@@ -287,7 +295,7 @@ def make_rough_bergomi_model_spec(v_0: float, nu: float, hurst: float, rho: floa
 
     # PRICE coefficients (not log-price)
     sigma = lambda s, v, t: s * jnp.sqrt(v_0) * jnp.exp(0.5 * nu * v - 0.25 * (nu**2) * (t ** (2.0 * hurst)))
-    g = lambda s, v, t: -0.5 * s * v_0 * jnp.exp(nu * v - 0.5 * (nu**2) * (t ** (2.0 * hurst)))
+    g = lambda s, v, t: 0.0
     tau = lambda s, v, t: 1.0  # dV = dX
 
     return BonesiniModelSpec(
@@ -312,21 +320,21 @@ if __name__ == "__main__":
     rough_bergomi_model_spec = make_rough_bergomi_model_spec(v_0=0.04, nu=1.991, hurst=0.25, rho=-0.848)
 
     noise_timesteps = 1000
-    rde_timesteps = 15000
+    rde_timesteps = 5000
 
     ## BLACK-SCHOLES
     # Generate drivers for multiple paths
     keys = jax.random.split(jax.random.key(42), 1000)
     y0_bs, X_bs, W_bs = jax.vmap(lambda key: get_bonesini_noise_drivers(key, noise_timesteps, black_scholes_model_spec, s_0=1.0))(keys)
 
-    # Vmap over solving (build terms inside)
-    solve_vmap_bs = jax.vmap(lambda y0, X, W: solve_bonesini_rde_from_drivers(y0, X, W, black_scholes_model_spec, noise_timesteps, rde_timesteps))
-    solutions_bs = solve_vmap_bs(y0_bs, X_bs, W_bs)
-    plot_bonesini_monte_carlo(solutions_bs, black_scholes_model_spec)
+    # # Vmap over solving (build terms inside)
+    # solve_vmap_bs = jax.vmap(lambda y0, X, W: solve_bonesini_rde_from_drivers(y0, X, W, black_scholes_model_spec, noise_timesteps, rde_timesteps))
+    # solutions_bs = solve_vmap_bs(y0_bs, X_bs, W_bs)
+    # plot_bonesini_monte_carlo(solutions_bs, black_scholes_model_spec)
 
-    ## BERGOMI
-    # Generate drivers for multiple paths
-    keys = jax.random.split(jax.random.key(42), 1000)
+    # ## BERGOMI
+    # # Generate drivers for multiple paths
+    keys = jax.random.split(jax.random.key(42), 3000)
     y0_b, X_b, W_b = jax.vmap(lambda key: get_bonesini_noise_drivers(key, noise_timesteps, bergomi_model_spec, s_0=1.0))(keys)
 
     # Vmap over solving
@@ -336,7 +344,7 @@ if __name__ == "__main__":
 
     ## ROUGH BERGOMI
     # Generate drivers for multiple paths
-    keys = jax.random.split(jax.random.key(42), 1000)
+    keys = jax.random.split(jax.random.key(42), 3000)
     y0_rb, X_rb, W_rb = jax.vmap(lambda key: get_bonesini_noise_drivers(key, noise_timesteps, rough_bergomi_model_spec, s_0=100.0))(keys)
 
     # Vmap over solving
