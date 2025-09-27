@@ -11,6 +11,7 @@ def compute_path_signature(
     path: jax.Array,
     depth: int,
     mode: Literal["full"],
+    index_start: int = 0,
 ) -> Signature: ...
 
 
@@ -19,6 +20,7 @@ def compute_path_signature(
     path: jax.Array,
     depth: int,
     mode: Literal["stream", "incremental"],
+    index_start: int = 0,
 ) -> list[Signature]: ...
 
 
@@ -27,6 +29,7 @@ def compute_path_signature(
     path: jax.Array,
     depth: int,
     mode: Literal["full", "stream", "incremental"],
+    index_start: int = 0,
 ) -> Signature | list[Signature]:
     r"""Computes the truncated path signature
     $$\operatorname{Sig}_{0,T}(X)=\bigl(S^{(1)}_{0,T},\,S^{(2)}_{0,T},\ldots,S^{(m)}_{0,T}\bigr),\qquad m=\text{depth}.$$
@@ -50,6 +53,11 @@ def compute_path_signature(
             shape $$(\sum_{p=1}^{m}D_p).$$
         If $$\text{stream}=\text{True}$$:
             shape $$(\;\text{seq\_len}-1,\;\sum_{p=1}^{m}D_p).$$
+    Note:
+        Intervals are expressed in global sample indices using `index_start`:
+        - full: `(index_start, index_start + N)`
+        - stream: `(index_start, index_start + t)` for each t
+        - incremental: `(index_start + i, index_start + i + 1)` for each i
     """
     assert depth > 0 and isinstance(depth, int), "Depth must be a positive integer."
     if path.ndim == 1:
@@ -64,7 +72,7 @@ def compute_path_signature(
             zero_terms = [jnp.zeros((n_features ** (i + 1),), dtype=path.dtype) for i in range(depth)]
             return Signature(
                 signature=zero_terms,
-                interval=(0, path.shape[0]),
+                interval=(index_start, index_start + path.shape[0]),
             )
         elif mode in ("stream", "incremental"):
             return []
@@ -76,7 +84,7 @@ def compute_path_signature(
         return [
             Signature(
                 signature=restricted_tensor_exp(path_increments[i, :], depth=depth),
-                interval=(i, i + 1),
+                interval=(index_start + i, index_start + i + 1),
             )
             for i in range(path_increments.shape[0])
         ]
@@ -123,13 +131,13 @@ def compute_path_signature(
         final_levels = [jnp.array(c[-1]) for c in incremental_signatures]
         return Signature(
             signature=final_levels,
-            interval=(0, path.shape[0]),
+            interval=(index_start, index_start + path.shape[0]),
         )
     elif mode == "stream":
         return [
             Signature(
                 signature=[term[i, :] for term in incremental_signatures],
-                interval=(0, i + 1),
+                interval=(index_start, index_start + i + 1),
             )
             for i in range(path_increments.shape[0])
         ]
