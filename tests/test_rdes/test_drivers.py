@@ -264,6 +264,56 @@ def test_rl_correlation_with_bm(rl_samples: Path) -> None:
     assert jnp.abs(empirical_corr) > 0.1, f"Correlation between BM and RL increments is {float(empirical_corr):.3f}, expected > 0.1"
 
 
+@pytest.mark.parametrize("hurst", [0.3, 0.7])
+def test_rl_multivariate_correlation_preservation(hurst: float) -> None:
+    """
+    Verify that cross-sectional correlations across Brownian channels are preserved
+    (up to sampling error) by the RL driver when applied channelwise.
+    """
+    seed = 7
+    N = 1000
+    M = 800
+    dim = 3
+
+    # Target SPD correlation matrix
+    corr = jnp.array(
+        [
+            [1.0, 0.6, -0.3],
+            [0.6, 1.0, 0.2],
+            [-0.3, 0.2, 1.0],
+        ]
+    )
+    chol = jnp.linalg.cholesky(corr)
+
+    key = jax.random.key(seed)
+    key_bm, key_rl = jax.random.split(key)
+    bm_keys = jax.random.split(key_bm, M)
+    rl_keys = jax.random.split(key_rl, M)
+
+    # Build correlated-dimension BM paths by post-multiplying increments with chol
+    def correlated_bm_path(k: jax.Array) -> Path:
+        base = bm_driver(k, timesteps=N, dim=dim)
+        inc = jnp.diff(base.path, axis=0)  # (N, dim)
+        corr_inc = inc @ chol.T  # (N, dim)
+        new_path = jnp.concatenate([jnp.zeros((1, dim), dtype=corr_inc.dtype), jnp.cumsum(corr_inc, axis=0)], axis=0)
+        return Path(new_path, base.interval)
+
+    bm_paths = jax.vmap(correlated_bm_path)(bm_keys)
+
+    # Apply RL driver channelwise
+    rl_paths = jax.vmap(lambda rk, bp: riemann_liouville_driver(rk, timesteps=N, hurst=hurst, bm_path=bp))(rl_keys, bm_paths)
+
+    # Pool RL increments across time and batch, compute empirical correlation matrix
+    rl_increments = jnp.diff(rl_paths.path, axis=1)  # (M, N, dim)
+    X = rl_increments.reshape(-1, dim)  # (M*N, dim)
+    # jnp.corrcoef expects variables in columns when rowvar=False
+    emp_corr = jnp.corrcoef(X, rowvar=False)
+
+    max_err = jnp.max(jnp.abs(emp_corr - corr))
+    tol = 0.08 if hurst < 0.5 else 0.05
+    assert max_err <= tol, f"Max entrywise correlation error {float(max_err):.3f} exceeds {tol:.2f}\n" f"Empirical:\n{emp_corr}\nTarget:\n{corr}"
+
+
 @pytest.mark.parametrize("seed", [0, 1])
 @pytest.mark.parametrize("timesteps", [1000, 3000])
 @pytest.mark.parametrize("hurst", [0.25, 0.5, 0.75])

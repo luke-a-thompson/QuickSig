@@ -24,15 +24,11 @@ def test_chen_identity(scalar_path_fixture: jax.Array, depth: int):
     sig_1 = Signature(
         signature=sig_1_computed.signature,
         interval=(0, midpoint_idx),
-        ambient_dimension=sig_1_computed.ambient_dimension,
-        depth=sig_1_computed.depth,
         basis_name=sig_1_computed.basis_name,
     )
     sig_2 = Signature(
         signature=sig_2_computed.signature,
         interval=(midpoint_idx, len(path) - 1),
-        ambient_dimension=sig_2_computed.ambient_dimension,
-        depth=sig_2_computed.depth,
         basis_name=sig_2_computed.basis_name,
     )
 
@@ -67,22 +63,16 @@ def test_chen_identity_three_signatures(scalar_path_fixture: jax.Array, depth: i
     sig_1 = Signature(
         signature=sig_1_computed.signature,
         interval=(0, third_point_idx),
-        ambient_dimension=sig_1_computed.ambient_dimension,
-        depth=sig_1_computed.depth,
         basis_name=sig_1_computed.basis_name,
     )
     sig_2 = Signature(
         signature=sig_2_computed.signature,
         interval=(third_point_idx, two_thirds_point_idx),
-        ambient_dimension=sig_2_computed.ambient_dimension,
-        depth=sig_2_computed.depth,
         basis_name=sig_2_computed.basis_name,
     )
     sig_3 = Signature(
         signature=sig_3_computed.signature,
         interval=(two_thirds_point_idx, len(path) - 1),
-        ambient_dimension=sig_3_computed.ambient_dimension,
-        depth=sig_3_computed.depth,
         basis_name=sig_3_computed.basis_name,
     )
 
@@ -114,16 +104,12 @@ def test_chen_identity_non_consecutive_intervals(scalar_path_fixture: jax.Array,
     sig_1 = Signature(
         signature=sig_1_computed.signature,
         interval=(0, midpoint_idx),
-        ambient_dimension=sig_1_computed.ambient_dimension,
-        depth=sig_1_computed.depth,
         basis_name=sig_1_computed.basis_name,
     )
     # create a gap between intervals
     sig_2_non_consecutive = Signature(
         signature=sig_2_computed.signature,
         interval=(midpoint_idx + 1, len(path) - 1),
-        ambient_dimension=sig_2_computed.ambient_dimension,
-        depth=sig_2_computed.depth,
         basis_name=sig_2_computed.basis_name,
     )
 
@@ -149,20 +135,19 @@ def test_chen_identity_mismatched_ambient_dimension(scalar_path_fixture: jax.Arr
     sig_1_computed = compute_path_signature(path_1, depth=depth, mode="full")
     sig_2_computed = compute_path_signature(path_2, depth=depth, mode="full")
 
-    # Create signatures with different ambient dimensions
+    # Create signatures with different ambient dimensions by padding path_2
     sig_1 = Signature(
         signature=sig_1_computed.signature,
         interval=(0, midpoint_idx),
-        ambient_dimension=sig_1_computed.ambient_dimension,
-        depth=sig_1_computed.depth,
         basis_name=sig_1_computed.basis_name,
     )
+    # Pad path_2 with one zero-feature to change ambient dimension
+    path_2_padded = jnp.pad(path_2, ((0, 0), (0, 1)))
+    sig_2_padded = compute_path_signature(path_2_padded, depth=depth, mode="full")
     sig_2 = Signature(
-        signature=sig_2_computed.signature,
+        signature=sig_2_padded.signature,
         interval=(midpoint_idx, len(path) - 1),
-        ambient_dimension=sig_2_computed.ambient_dimension + 1,  # Different ambient dimension
-        depth=sig_2_computed.depth,
-        basis_name=sig_2_computed.basis_name,
+        basis_name=sig_2_padded.basis_name,
     )
 
     # Check that combining signatures with different ambient dimensions raises a ValueError
@@ -191,15 +176,11 @@ def test_chen_identity_mismatched_depth(scalar_path_fixture: jax.Array, depth: i
     sig_1 = Signature(
         signature=sig_1_computed.signature,
         interval=(0, midpoint_idx),
-        ambient_dimension=sig_1_computed.ambient_dimension,
-        depth=sig_1_computed.depth,
         basis_name=sig_1_computed.basis_name,
     )
     sig_2 = Signature(
         signature=sig_2_computed.signature,
         interval=(midpoint_idx, len(path) - 1),
-        ambient_dimension=sig_2_computed.ambient_dimension,
-        depth=sig_2_computed.depth,
         basis_name=sig_2_computed.basis_name,
     )
 
@@ -218,8 +199,6 @@ def test_signature_str_representation():
     sig = Signature(
         signature=signature_terms,
         interval=(0.0, 1.0),
-        ambient_dimension=2,
-        depth=2,
         basis_name="Tensor words",
     )
 
@@ -239,15 +218,11 @@ def test_log_signature_matmul_not_implemented():
     log_sig_1 = LogSignature(
         signature=signature_terms,
         interval=(0.0, 1.0),
-        ambient_dimension=2,
-        depth=1,
         basis_name="Tensor words",
     )
     log_sig_2 = LogSignature(
         signature=signature_terms,
         interval=(1.0, 2.0),
-        ambient_dimension=2,
-        depth=1,
         basis_name="Tensor words",
     )
 

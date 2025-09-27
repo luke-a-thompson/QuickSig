@@ -24,7 +24,8 @@ class BaseSignature(ABC):
     def ambient_dimension(self) -> int:
         if len(self.signature) == 0:
             return 0
-        return int(self.signature[0].size)
+        first_level = self.signature[0]
+        return int(first_level.shape[0])
 
     @override
     def __str__(self) -> str:
