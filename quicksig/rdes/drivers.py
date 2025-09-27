@@ -187,7 +187,6 @@ def riemann_liouville_driver(
     Returns a Path with Y_0 = 0 and Y_k on the input grid.
     """
 
-    assert 0.0 < hurst < 0.5, "Hybrid κ=1 is used for H in (0, 1/2)."
     assert bm_path.num_timesteps == timesteps + 1, "bm_path must have shape (timesteps+1, dim)."
 
     dim = bm_path.ambient_dimension
@@ -221,25 +220,13 @@ def riemann_liouville_driver(
         y  = jnp.fft.irfft(wf * xf, n=L)[: w.shape[0] + x.shape[0] - 1]
         return y
 
-    if use_fft:
         # x is ΔW[0:T-1] (i.e., ΔW_1..ΔW_{T-1}); Y2_k for k>=2 is y[k-2]
-        def per_dim(x):
-            y = conv_full_1d(w, x[:-1])                         # length 2T-3
-            return jnp.concatenate([jnp.zeros((1,), x.dtype), y[: timesteps - 1]])  # (T,)
+    def per_dim(x):
+        y = conv_full_1d(w, x[:-1])                         # length 2T-3
+        return jnp.concatenate([jnp.zeros((1,), x.dtype), y[: timesteps - 1]])  # (T,)
 
-        Y2 = jnp.stack([per_dim(dW[:, d]) for d in range(dim)], axis=1)  # (T, dim)
-    else:
-        # O(T^2) fallback (fine for small T)
-        def hist_scan(carry, k):  # k = 1..T
-            # k==1 -> Y2=0; else Y2_k = sum_{j=0}^{k-2} w[j]*ΔW_{k-1-j}
-            def body():
-                j_idx = jnp.arange(0, k - 1)
-                return (w[j_idx] @ dW[k - 1 - j_idx, :])  # (dim,)
-            Y2k = lax.cond(k > 1, body, lambda: jnp.zeros((dim,), dW.dtype))
-            return carry, Y2k
+    Y2 = jnp.stack([per_dim(dW[:, d]) for d in range(dim)], axis=1)  # (T, dim)
 
-        _, Y2 = lax.scan(hist_scan, None, jnp.arange(1, timesteps + 1))
-        # Y2 shape (T, dim)
 
     # Assemble Y_k values and prepend Y_0=0
     Y_tail = sqrt2H * (I + Y2)                                  # (T, dim)
