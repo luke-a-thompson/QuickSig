@@ -67,8 +67,6 @@ def compute_log_signature(
         return LogSignature(
             signature=log_sig_tensors,
             interval=signature.interval,
-            ambient_dimension=n_features,
-            depth=depth,
             basis_name=log_signature_type,
         )
 

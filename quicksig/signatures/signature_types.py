@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, override
+from typing import Literal, override, TypedDict
 from abc import ABC
 import jax
 import jax.numpy as jnp
@@ -10,13 +10,21 @@ from quicksig.tensor_ops import cauchy_convolution
 class BaseSignature(ABC):
     signature: list[jax.Array]
     interval: tuple[float, float]
-    ambient_dimension: int
-    depth: int
     basis_name: Literal["Tensor words", "Lyndon words"]
 
     def flatten(self) -> jax.Array:
         """Flattens the signature terms into a single vector."""
         return jnp.concatenate([jnp.ravel(term) for term in self.signature], axis=0)
+
+    @property
+    def depth(self) -> int:
+        return len(self.signature)
+
+    @property
+    def ambient_dimension(self) -> int:
+        if len(self.signature) == 0:
+            return 0
+        return int(self.signature[0].size)
 
     @override
     def __str__(self) -> str:
@@ -24,7 +32,7 @@ class BaseSignature(ABC):
     depth={self.depth},
     ambient_dimension={self.ambient_dimension},
     interval={self.interval},
-    signature_shapes={[term.shape for term in self.signature]}
+    signature_shapes={[term.shape for term in self.signature]},
 )"""
         return string
 
@@ -37,17 +45,24 @@ class BaseSignature(ABC):
         children = (self.signature,)
         aux_data = {
             "interval": self.interval,
-            "ambient_dimension": self.ambient_dimension,
-            "depth": self.depth,
             "basis_name": self.basis_name,
         }
         return (children, aux_data)
 
     @classmethod
-    def tree_unflatten(cls, aux_data, children):
+    def tree_unflatten(
+        cls,
+        aux_data: "_AuxData",
+        children: tuple[list[jax.Array]],
+    ) -> "BaseSignature":
         """Unflattens the Pytree."""
         (signature,) = children
         return cls(signature=signature, **aux_data)
+
+
+class _AuxData(TypedDict):
+    interval: tuple[float, float]
+    basis_name: Literal["Tensor words", "Lyndon words"]
 
 
 @dataclass(frozen=True)
@@ -66,15 +81,15 @@ class LogSignature(BaseSignature):
         raise NotImplementedError("Product of log signatures is not defined.")
 
 
-jax.tree_util.register_pytree_node_class(Signature)
-jax.tree_util.register_pytree_node_class(LogSignature)
+_ = jax.tree_util.register_pytree_node_class(Signature)
+_ = jax.tree_util.register_pytree_node_class(LogSignature)
 
 
 def _chen_identity(lhs_signature: Signature, rhs_signature: Signature) -> Signature:
     if lhs_signature.ambient_dimension != rhs_signature.ambient_dimension:
         raise ValueError("Signatures must have the same ambient_dimension.")
     if lhs_signature.depth != rhs_signature.depth:
-        raise ValueError("Signatures must have the same depth. " f"Got: {lhs_signature.depth} and {rhs_signature.depth}")
+        raise ValueError(f"Signatures must have the same depth. Got: {lhs_signature.depth} and {rhs_signature.depth}")
 
     if lhs_signature.interval[1] != rhs_signature.interval[0]:
         gap = rhs_signature.interval[0] - lhs_signature.interval[1]
@@ -101,6 +116,4 @@ and rhs signature (interval {rhs_signature.interval})."""
     return Signature(
         signature=new_signature_terms_flat,
         interval=(lhs_signature.interval[0], rhs_signature.interval[1]),
-        ambient_dimension=lhs_signature.ambient_dimension,
-        depth=lhs_signature.depth,
     )

@@ -65,8 +65,6 @@ def compute_path_signature(
             return Signature(
                 signature=zero_terms,
                 interval=(0, path.shape[0]),
-                ambient_dimension=n_features,
-                depth=depth,
             )
         elif mode in ("stream", "incremental"):
             return []
@@ -79,8 +77,6 @@ def compute_path_signature(
             Signature(
                 signature=restricted_tensor_exp(path_increments[i, :], depth=depth),
                 interval=(i, i + 1),
-                ambient_dimension=n_features,
-                depth=depth,
             )
             for i in range(path_increments.shape[0])
         ]
@@ -128,16 +124,12 @@ def compute_path_signature(
         return Signature(
             signature=final_levels,
             interval=(0, path.shape[0]),
-            ambient_dimension=n_features,
-            depth=depth,
         )
     elif mode == "stream":
         return [
             Signature(
                 signature=[term[i, :] for term in incremental_signatures],
                 interval=(0, i + 1),
-                ambient_dimension=n_features,
-                depth=depth,
             )
             for i in range(path_increments.shape[0])
         ]

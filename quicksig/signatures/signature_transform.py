@@ -1,8 +1,6 @@
 import jax
-import jax.numpy as jnp
 from functools import partial
 from .compute_path_signature import compute_path_signature
-from .compute_log_signature import compute_log_signature
 from typing import Literal
 from .signature_types import Signature
 
@@ -13,7 +11,7 @@ def signature_transform(
     depth: int,
     mode: Literal["full", "stream", "incremental"] = "full",
     flatten: bool = True,
-) -> Signature:
+) -> Signature | list[Signature] | jax.Array | list[jax.Array]:
     """
     Compute the signature of a path.
 
@@ -29,12 +27,12 @@ def signature_transform(
     match mode:
         case "full":
             signature = compute_path_signature(path, depth, mode=mode)
-            return flatten_signature(signature, mode=mode) if flatten else signature
+            return signature.flatten() if flatten else signature
         case "stream":
             signature = compute_path_signature(path, depth, mode=mode)
-            return flatten_signature(signature, mode=mode) if flatten else signature
+            return [s.flatten() for s in signature] if flatten else signature
         case "incremental":
             signature = compute_path_signature(path, depth, mode=mode)
-            return flatten_signature(signature, mode=mode) if flatten else signature
+            return [s.flatten() for s in signature] if flatten else signature
         case _:
             raise ValueError(f"Invalid mode: {mode}")
