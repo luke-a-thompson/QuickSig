@@ -7,7 +7,7 @@ from quicksig.rde_bench.rough_volatility import BonesiniModelSpec
 from pathlib import Path
 
 
-def plot_bonesini_rde(solution: dfx.Solution | list[dfx.Solution], model_spec: BonesiniModelSpec | list[BonesiniModelSpec]) -> None:
+def plot_bonesini_rde(solution: dfx.Solution | list[dfx.Solution], model_spec: BonesiniModelSpec | list[BonesiniModelSpec], output_dir: Path | None = None) -> None:
     if isinstance(model_spec, BonesiniModelSpec):
         model_spec = [model_spec]
 
@@ -30,12 +30,17 @@ def plot_bonesini_rde(solution: dfx.Solution | list[dfx.Solution], model_spec: B
     plt.legend()
     plt.xlabel("Time")
     plt.ylabel("Log-Price")
-    out_dir = Path(__file__).resolve().parents[2] / "docs" / "assets"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    plt.savefig(out_dir / "price_comparison.svg")
+    
+    if output_dir is None:
+        output_dir = Path(__file__).resolve().parents[1] / "docs" / "rde_bench" / "rough_volatility"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    plt.savefig(output_dir / "price_comparison.png")
+    print(f"Saved price_comparison.png to {output_dir}")
+    plt.close()
 
 
-def plot_bonesini_monte_carlo(solution: dfx.Solution, model_spec: BonesiniModelSpec, plot_variance: bool = False, use_log_price: bool = True) -> None:
+def plot_bonesini_monte_carlo(solution: dfx.Solution, model_spec: BonesiniModelSpec, plot_variance: bool = False, use_log_price: bool = True, output_dir: Path | None = None) -> None:
     fig, (ax_main, ax_marginal) = plt.subplots(1, 2, figsize=(12, 6), gridspec_kw={"width_ratios": [3, 1]})
 
     ts_paths = jnp.asarray(solution.ts)
@@ -111,6 +116,58 @@ def plot_bonesini_monte_carlo(solution: dfx.Solution, model_spec: BonesiniModelS
         ax_marginal.set_ylim(y_min, y_max)
 
     plt.tight_layout()
-    out_dir = Path(__file__).resolve().parents[2] / "docs" / "assets"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    plt.savefig(out_dir / f"{model_spec.name.lower().replace(' ', '_')}_monte_carlo.png")
+    
+    if output_dir is None:
+        output_dir = Path(__file__).resolve().parents[1] / "docs" / "rde_bench" / "rough_volatility"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    filename = f"{model_spec.name.lower().replace(' ', '_')}_monte_carlo.png"
+    plt.savefig(output_dir / filename)
+    print(f"Saved {filename} to {output_dir}")
+    plt.close()
+
+
+if __name__ == "__main__":
+    from quicksig.rde_bench.rough_volatility import (
+        make_black_scholes_model_spec,
+        make_bergomi_model_spec,
+        make_rough_bergomi_model_spec,
+        get_bonesini_noise_drivers,
+        solve_bonesini_rde_from_drivers,
+    )
+
+    noise_timesteps = 1000
+    rde_timesteps = 5000
+    num_paths = 3000
+
+    output_dir = Path(__file__).resolve().parents[1] / "docs" / "rde_bench" / "rough_volatility"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # BLACK-SCHOLES
+    print("Generating Black-Scholes Monte Carlo...")
+    black_scholes_model_spec = make_black_scholes_model_spec(v_0=0.04)
+    keys_bs = jax.random.split(jax.random.key(42), num_paths)
+    y0_bs, X_bs, W_bs = jax.vmap(lambda key: get_bonesini_noise_drivers(key, noise_timesteps, black_scholes_model_spec, s_0=1.0))(keys_bs)
+    solve_vmap_bs = jax.vmap(lambda y0, X, W: solve_bonesini_rde_from_drivers(y0, X, W, black_scholes_model_spec, noise_timesteps, rde_timesteps))
+    solutions_bs = solve_vmap_bs(y0_bs, X_bs, W_bs)
+    plot_bonesini_monte_carlo(solutions_bs, black_scholes_model_spec, output_dir=output_dir)
+
+    # BERGOMI
+    print("Generating Bergomi Monte Carlo...")
+    bergomi_model_spec = make_bergomi_model_spec(v_0=0.0, rho=-0.848)
+    keys_b = jax.random.split(jax.random.key(42), num_paths)
+    y0_b, X_b, W_b = jax.vmap(lambda key: get_bonesini_noise_drivers(key, noise_timesteps, bergomi_model_spec, s_0=1.0))(keys_b)
+    solve_vmap_b = jax.vmap(lambda y0, X, W: solve_bonesini_rde_from_drivers(y0, X, W, bergomi_model_spec, noise_timesteps, rde_timesteps))
+    solutions_b = solve_vmap_b(y0_b, X_b, W_b)
+    plot_bonesini_monte_carlo(solutions_b, bergomi_model_spec, output_dir=output_dir)
+
+    # ROUGH BERGOMI
+    print("Generating Rough Bergomi Monte Carlo...")
+    rough_bergomi_model_spec = make_rough_bergomi_model_spec(v_0=0.04, nu=1.991, hurst=0.25, rho=-0.848)
+    keys_rb = jax.random.split(jax.random.key(42), num_paths)
+    y0_rb, X_rb, W_rb = jax.vmap(lambda key: get_bonesini_noise_drivers(key, noise_timesteps, rough_bergomi_model_spec, s_0=100.0))(keys_rb)
+    solve_vmap_rb = jax.vmap(lambda y0, X, W: solve_bonesini_rde_from_drivers(y0, X, W, rough_bergomi_model_spec, noise_timesteps, rde_timesteps))
+    solutions_rb = solve_vmap_rb(y0_rb, X_rb, W_rb)
+    plot_bonesini_monte_carlo(solutions_rb, rough_bergomi_model_spec, use_log_price=True, output_dir=output_dir)
+
+    print(f"\nAll plots saved to {output_dir}")

@@ -52,10 +52,8 @@ dev = [
     "pytest-cov>=6.1.1",
     "pytest-timeout>=2.3.1",
     "mypy>=1.8.0",
-    "black>=24.2.0",
     "matplotlib>=3.10.1",
     "signax>=0.2.1",
-    "rich>=13.7.0",
     "tqdm>=4.67.1",
     "ipykernel>=6.29.5",
 ]

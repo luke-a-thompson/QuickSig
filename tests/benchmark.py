@@ -8,16 +8,12 @@ from pathlib import Path
 from typing import TypedDict, Literal
 from tests.test_helpers import generate_scalar_path
 import jax
-from rich.console import Console
-from rich.table import Table
-from rich.text import Text
 from tqdm import tqdm
 
 import quicksig
 import signax
 
 KEY = jax.random.PRNGKey(42)
-console = Console()
 
 
 class BenchmarkResult(TypedDict):
@@ -110,12 +106,12 @@ def benchmark_signature(
         baselines = _load_baselines()
         has_regression = False
 
-        table = Table(title=f"Signature Benchmark Results on {jax_device.upper()}.")
-        table.add_column("Steps", justify="left")
-        table.add_column("Channels", justify="left")
-        table.add_column("Depth", justify="left")
-        table.add_column("QuickSig (μs)", justify="left")
-        table.add_column("Signax (μs)", justify="left")
+        print(f"\nSignature Benchmark Results on {jax_device.upper()}")
+        print("-" * 100)
+        print(f"{'Steps':<10} {'Channels':<10} {'Depth':<10} {'QuickSig (μs)':<30} {'Signax (μs)':<30}")
+        print("-" * 100)
+
+        results = []
 
         for _, (num_timesteps, channels, depth) in (
             pbar := tqdm(enumerate(_DEFAULT_COMBINATIONS), desc="Benchmarking combinations", position=0, leave=False, total=len(_DEFAULT_COMBINATIONS))
@@ -175,14 +171,15 @@ def benchmark_signature(
                     is_regression_case = True
                     has_regression = True
 
-            # Format the medians with color
+            # Format the medians
             quicksig_text = f"{quicksig_median:.1f} ± {2*quicksig_std:.1f}"
             signax_text = f"{signax_median:.1f} ± {2*signax_std:.1f}"
 
-            if check_regression:
-                quicksig_text = Text(quicksig_text, style="red" if is_regression_case else "green")
+            # Add regression marker
+            regression_marker = " [REGRESSION]" if is_regression_case else ""
+            quicksig_text_with_marker = quicksig_text + regression_marker
 
-            table.add_row(str(num_timesteps), str(channels), str(depth), quicksig_text, signax_text)
+            results.append((str(num_timesteps), str(channels), str(depth), quicksig_text_with_marker, signax_text))
 
             # Update baseline if requested
             if update_baseline:
@@ -191,7 +188,14 @@ def benchmark_signature(
         if update_baseline:
             _save_baselines(baselines)
 
-        console.print(table)
+        # Print all results
+        for steps, channels, depth, quicksig_text, signax_text in results:
+            print(f"{steps:<10} {channels:<10} {depth:<10} {quicksig_text:<30} {signax_text:<30}")
+        print("-" * 100)
+
+        if has_regression:
+            print("\nWARNING: Performance regressions detected (marked with [REGRESSION])")
+
         return not has_regression
 
 

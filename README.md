@@ -21,11 +21,19 @@ pip install quicksig
 For GPU support (CUDA 12):
 ```bash
 pip install quicksig[cuda]
+uv sync --extra cuda
 ```
 
 For development:
 ```bash
 pip install quicksig[dev]
+uv sync --extra dev
+```
+
+For development:
+```bash
+pip install quicksig[all]
+uv sync --extra all
 ```
 
 ## Quick Start
