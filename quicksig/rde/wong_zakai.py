@@ -29,6 +29,15 @@ def wz_friz_riedel_stepcount(epsilon: float, hurst: float, T: float = 1.0, eta: 
     Minimum uniform-grid step count to reach epsilon accuracy on [0, T].
 
     Source: https://arxiv.org/abs/1108.1099
+
+    Args:
+        epsilon: desired error tolerance (0 < epsilon < 1)
+        hurst: Hurst index H of the fractional Brownian driver (H > 0.25)
+        T: length of the interval [0, T]
+        eta: small slack to keep the exponent positive
+
+    Returns:
+        N: minimum uniform-grid step count
     """
     delta = wz_friz_riedel_meshsize(epsilon, hurst, eta)
     return math.ceil(T / delta)

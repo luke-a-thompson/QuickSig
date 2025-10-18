@@ -2,7 +2,7 @@ import pytest
 import functools
 import jax
 import jax.numpy as jnp
-from quicksig.rdes.augmentations import (
+from quicksig.rde.augmentations import (
     augment_path,
     basepoint_augmentation,
     time_augmentation,
@@ -10,7 +10,7 @@ from quicksig.rdes.augmentations import (
     non_overlapping_windower,
     dyadic_windower,
 )
-from quicksig.rdes.rde_types import pathify, Path
+from quicksig.rde.rde_types import pathify, Path
 from tests.test_helpers import generate_scalar_path
 
 _test_key = jax.random.PRNGKey(42)

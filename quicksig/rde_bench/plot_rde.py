@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import diffrax as dfx
 import jax
 import jax.numpy as jnp
+import jax.scipy.stats
 from quicksig.rde_bench.rough_volatility import BonesiniModelSpec
 from pathlib import Path
 
@@ -82,10 +83,30 @@ def plot_bonesini_monte_carlo(solution: dfx.Solution, model_spec: BonesiniModelS
     ax_main.set_title(f"{model_spec.name} Monte Carlo")
 
     if final_values:
-        ax_marginal.hist(final_values, bins=30, orientation="horizontal", color="gray", alpha=0.7)
-        ax_marginal.set_xlabel("Frequency")
+        ax_marginal.hist(final_values, bins=30, orientation="horizontal", color="gray", alpha=0.7, density=True)
+
+        # Simple fat-tailedness check: compare to normal distribution
+        final_array = jnp.array(final_values)
+        mean_val = jnp.mean(final_array)
+        std_val = jnp.std(final_array)
+
+        # Generate normal distribution with same mean/std
+        y_range = jnp.linspace(mean_val - 3 * std_val, mean_val + 3 * std_val, 100)
+        normal_pdf = jnp.exp(-0.5 * ((y_range - mean_val) / std_val) ** 2) / (std_val * jnp.sqrt(2 * jnp.pi))
+
+        # Plot normal distribution for comparison
+        ax_marginal.plot(normal_pdf, y_range, color="red", linestyle="--", alpha=0.8, label="Normal")
+
+        # Simple fat-tailedness indicator: compare tail probabilities
+        tail_threshold = 2 * std_val
+        empirical_tail_prob = jnp.mean(jnp.abs(final_array - mean_val) > tail_threshold)
+        normal_tail_prob = 2 * (1 - jax.scipy.stats.norm.cdf(tail_threshold, 0, std_val))
+
+        ax_marginal.set_xlabel("Density")
         ax_marginal.set_ylabel("Log-Price" if use_log_price else "Price")
-        ax_marginal.set_title(f"t=1 Marginal ({price_label})")
+        title = f"t=1 Marginal ({price_label})"
+        ax_marginal.set_title(title)
+        ax_marginal.legend()
         y_min, y_max = ax_main.get_ylim()
         ax_marginal.set_ylim(y_min, y_max)
 

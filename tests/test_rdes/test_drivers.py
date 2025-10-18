@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
-from quicksig.rdes.drivers import bm_driver, correlate_bm_driver_against_reference, riemann_liouville_driver
-from quicksig.rdes.rde_types import Path
+from quicksig.rde.drivers import bm_driver, correlate_bm_driver_against_reference, riemann_liouville_driver
+from quicksig.rde.rde_types import Path
 import pytest
 
 

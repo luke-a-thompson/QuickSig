@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 from jax import Array
-from quicksig.rdes.drivers import bm_driver, correlate_bm_driver_against_reference, riemann_liouville_driver
+from quicksig.rde.drivers import bm_driver, correlate_bm_driver_against_reference, riemann_liouville_driver
 from typing import Callable
 import diffrax as dfx
 from diffrax import LinearInterpolation

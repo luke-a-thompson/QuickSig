@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from quicksig.rdes.rde_types import Path, pathify
+from quicksig.rde.rde_types import Path, pathify
 
 
 @pytest.mark.parametrize("stream_shape", [(100, 3), (3, 100, 3)])

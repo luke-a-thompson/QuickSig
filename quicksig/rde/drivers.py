@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 import jax.lax as lax
-from quicksig.rdes.rde_types import Path
+from quicksig.rde.rde_types import Path
 
 
 def bm_driver(key: jax.Array, timesteps: int, dim: int) -> Path:
@@ -169,7 +169,6 @@ def riemann_liouville_driver(
     timesteps: int,
     hurst: float,
     bm_path,                      # Path: Brownian path for W1(t) INCLUDING t=0, shape (T+1, dim)
-    use_fft: bool = True,
 ):
     """
     Hybrid scheme (kappa = 1) for the RL/type-II fBM driver used in rBergomi.
