@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
 import numpy as np
 
@@ -83,7 +81,7 @@ def calibrate_renorm_constant(
 
 def compute_C0_C1(
     params: SimParams,
-    num_tau: int = 32,
+    num_tau: int = 64,
     include_sidebands: bool = False,
 ) -> tuple[float, float, float]:
     """
@@ -283,19 +281,6 @@ def to_tcxyz(snaps: jax.Array) -> jax.Array:
     return snaps[:, None, ...]
 
 
-__all__: list[str] = [
-    "SimParams",
-    "Precomp",
-    "precompute",
-    "calibrate_renorm_constant",
-    "semi_implicit_step",
-    "simulate",
-    "structure_factor",
-    "two_point_correlation",
-    "to_tcxyz",
-]
-
-
 def main() -> None:
     """
     Run a default Phi^4_3 simulation and print basic info when executed as a script.
@@ -306,7 +291,7 @@ def main() -> None:
     dt: float = 0.01 * dx * dx
     # Keep physical horizons fixed; recompute steps if dt changes
     base_dt_coeff: float = 0.01  # reference coefficient for physical-time baselines
-    total_time: float = 512 * base_dt_coeff * dx * dx
+    total_time: float = 2048 * base_dt_coeff * dx * dx
     burnin_time: float = 64 * base_dt_coeff * dx * dx
     sim_steps: int = int(np.ceil(total_time / dt))
     burnin_steps: int = int(np.ceil(burnin_time / dt))
