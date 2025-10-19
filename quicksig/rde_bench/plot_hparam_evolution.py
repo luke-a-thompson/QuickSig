@@ -3,7 +3,6 @@ import matplotlib.animation as animation
 from matplotlib.patches import Ellipse
 import jax
 import jax.numpy as jnp
-import numpy as np
 from typing import Any, Optional
 from pathlib import Path
 
@@ -105,7 +104,7 @@ def plot_parameter_cloud_evolution(
     axes = axes.flatten()
 
     # Color map for time evolution
-    colors = plt.cm.viridis(np.linspace(0, 1, K + 1))
+    colors = plt.cm.viridis(jnp.linspace(0, 1, K + 1))
 
     for idx, (param1, param2) in enumerate(param_pairs):
         ax = axes[idx]

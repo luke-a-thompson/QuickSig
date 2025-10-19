@@ -1,5 +1,6 @@
 import math
 import jax
+import jax.numpy as jnp
 
 
 def spacetime_white_noise(
@@ -52,7 +53,6 @@ def spacetime_white_noise(
 
 
 if __name__ == "__main__":
-    import numpy as np
     import matplotlib.pyplot as plt
     from matplotlib.animation import FuncAnimation
 
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     dW_np = jax.device_get(dW)
 
     # Consistent color scale across frames
-    v = float(np.percentile(np.abs(dW_np), 99.0))
+    v = float(jnp.percentile(jnp.abs(dW_np), 99.0))
 
     fig, ax = plt.subplots()
     im = ax.imshow(dW_np[0], cmap="RdBu_r", vmin=-v, vmax=v, origin="lower")

@@ -1,6 +1,4 @@
 from dataclasses import dataclass
-import numpy as np
-
 import jax
 import jax.numpy as jnp
 
@@ -293,8 +291,8 @@ def main() -> None:
     base_dt_coeff: float = 0.01  # reference coefficient for physical-time baselines
     total_time: float = 2048 * base_dt_coeff * dx * dx
     burnin_time: float = 64 * base_dt_coeff * dx * dx
-    sim_steps: int = int(np.ceil(total_time / dt))
-    burnin_steps: int = int(np.ceil(burnin_time / dt))
+    sim_steps: int = int(jnp.ceil(total_time / dt))
+    burnin_steps: int = int(jnp.ceil(burnin_time / dt))
 
     params: SimParams = SimParams(
         N=N,
@@ -321,17 +319,17 @@ def main() -> None:
     if snaps is not None:
         snaps_np: object
         if params.dtype == jnp.float64:
-            snaps_np = np.asarray(jax.device_get(snaps), dtype=np.float64)
+            snaps_np = jnp.asarray(jax.device_get(snaps), dtype=jnp.float64)
         else:
-            snaps_np = np.asarray(jax.device_get(snaps), dtype=np.float32)
+            snaps_np = jnp.asarray(jax.device_get(snaps), dtype=jnp.float32)
         out_path: str = "phi34_snaps.npy"
-        np.save(out_path, snaps_np)
+        jnp.save(out_path, snaps_np)
         print(f"Saved spacetime snaps (NPY) to {out_path}")
 
         # Also save TCXYZ (add channel dim C=1) for visualization tools
-        snaps_tcxyz_np: object = np.expand_dims(snaps_np, axis=1)
+        snaps_tcxyz_np: object = jnp.expand_dims(snaps_np, axis=1)
         out_path_tcxyz: str = "phi34_snaps_tcxyz.npy"
-        np.save(out_path_tcxyz, snaps_tcxyz_np)
+        jnp.save(out_path_tcxyz, snaps_tcxyz_np)
         print(f"Saved TCXYZ snaps (NPY) to {out_path_tcxyz}")
 
 

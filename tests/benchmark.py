@@ -1,6 +1,6 @@
 import time
 from typing import Literal, TypedDict
-import numpy as np
+import jax.numpy as jnp
 import argparse
 import json
 import time
@@ -146,19 +146,19 @@ def benchmark_signature(
                 signax_times.append(time.perf_counter() - start)
 
             # Process QuickSig times
-            quicksig_times_us = np.array(quicksig_times) * 1e6
-            sorted_quicksig = np.sort(quicksig_times_us)
+            quicksig_times_us = jnp.array(quicksig_times) * 1e6
+            sorted_quicksig = jnp.sort(quicksig_times_us)
             n_outliers = int(len(sorted_quicksig) * 0.025)
             filtered_quicksig = sorted_quicksig[n_outliers:-n_outliers]
-            quicksig_median = float(np.median(filtered_quicksig))
-            quicksig_std = float(np.std(filtered_quicksig))
+            quicksig_median = float(jnp.median(filtered_quicksig))
+            quicksig_std = float(jnp.std(filtered_quicksig))
 
             # Process Signax times
-            signax_times_us = np.array(signax_times) * 1e6
-            sorted_signax = np.sort(signax_times_us)
+            signax_times_us = jnp.array(signax_times) * 1e6
+            sorted_signax = jnp.sort(signax_times_us)
             filtered_signax = sorted_signax[n_outliers:-n_outliers]
-            signax_median = float(np.median(filtered_signax))
-            signax_std = float(np.std(filtered_signax))
+            signax_median = float(jnp.median(filtered_signax))
+            signax_std = float(jnp.std(filtered_signax))
 
             # Check for regression
             key = f"{num_timesteps}_{channels}_{depth}"

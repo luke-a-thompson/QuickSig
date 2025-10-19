@@ -1,11 +1,11 @@
-import numpy as np
+import jax.numpy as jnp
 from quicksig.signatures.get_signature_dim import get_signature_dim, get_log_signature_dim
 
 # Global flag to control log signature plotting
 PLOT_LOG_SIGNATURE = True
 
 # Generate dimensions from 1 to 30
-dims = np.arange(1, 31)
+dims = jnp.arange(1, 31)
 # For depth=3, use the get_signature_dim function
 depth = 3
 sig_dims = [get_signature_dim(depth, dim) for dim in dims]
@@ -53,7 +53,7 @@ plt.gca().spines['bottom'].set_linewidth(1.5)
 # Add labels at x = 1, 3, 5, 10, 15, then every 5 up to 32
 label_xs = [1, 3, 5, 10, 15] + list(range(20, 31, 5))
 label_xs = [x for x in label_xs if x <= 30]
-annotate_indices = [int(np.argmin(np.abs(dims - x))) for x in label_xs]
+annotate_indices = [int(jnp.argmin(jnp.abs(dims - x))) for x in label_xs]
 for idx in annotate_indices:
     x = float(dims[idx])
     y = float(sig_dims[idx])
@@ -63,8 +63,8 @@ for idx in annotate_indices:
                 bbox=dict(boxstyle='round,pad=0.2', fc='white', ec='none', alpha=0.9))
 
 # Set axis limits with some padding
-plt.xlim(np.min(dims) - 1, np.max(dims) + 1)
-plt.ylim(np.min(sig_dims) * 0.8, np.max(sig_dims) * 1.2)
+plt.xlim(jnp.min(dims) - 1, jnp.max(dims) + 1)
+plt.ylim(jnp.min(sig_dims) * 0.8, jnp.max(sig_dims) * 1.2)
 
 # Add subtle legend
 plt.legend(frameon=True, fancybox=True, shadow=True, 
