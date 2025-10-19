@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from quicksig.rde.drivers import bm_driver, correlate_bm_driver_against_reference, riemann_liouville_driver
+from quicksig.rde.drivers import bm_driver, correlate_bm_driver_against_reference, riemann_liouville_driver, fractional_bm_driver
 from quicksig.rde.rde_types import Path
 import pytest
 
@@ -264,7 +264,7 @@ def test_rl_correlation_with_bm(rl_samples: Path) -> None:
     assert jnp.abs(empirical_corr) > 0.1, f"Correlation between BM and RL increments is {float(empirical_corr):.3f}, expected > 0.1"
 
 
-@pytest.mark.parametrize("hurst", [0.3, 0.7])
+@pytest.mark.parametrize("hurst", [0.3, 0.5, 0.7])
 def test_rl_multivariate_correlation_preservation(hurst: float) -> None:
     """
     Verify that cross-sectional correlations across Brownian channels are preserved
@@ -312,6 +312,123 @@ def test_rl_multivariate_correlation_preservation(hurst: float) -> None:
     max_err = jnp.max(jnp.abs(emp_corr - corr))
     tol = 0.08 if hurst < 0.5 else 0.05
     assert max_err <= tol, f"Max entrywise correlation error {float(max_err):.3f} exceeds {tol:.2f}\n" f"Empirical:\n{emp_corr}\nTarget:\n{corr}"
+
+
+@pytest.mark.parametrize("hurst", [0.3, 0.5, 0.7])
+def test_davies_harte_fbm_terminal_variance(hurst: float) -> None:
+    r"""
+    Davies-Harte fBM driver: B^H_1 should have variance 1 for any H in (0,1)
+    when using the canonical normalization.
+
+    We simulate many paths and assert Var[B^H_1] ≈ 1.
+    """
+    seed = 123
+    timesteps = 2048
+    dim = 1
+    num_paths = 2000
+
+    key = jax.random.key(seed)
+    keys = jax.random.split(key, num_paths)
+
+    vmap_fbm = jax.vmap(lambda k: fractional_bm_driver(k, timesteps=timesteps, dim=dim, hurst=hurst))
+    paths = vmap_fbm(keys)
+
+    terminal = paths.path[:, -1, 0]
+    var_emp = jnp.var(terminal, ddof=1)
+
+    # Tolerance scales with 1/sqrt(M). Use a modest cushion.
+    tol = 5.0 / jnp.sqrt(num_paths)
+    assert jnp.isclose(var_emp, 1.0, atol=float(tol)), f"Empirical Var[B^H_1]={float(var_emp):.3f} not close to 1.0 for H={hurst}"
+
+
+@pytest.mark.parametrize("hurst", [0.3, 0.5, 0.7])
+def test_davies_harte_fbm_zero_mean(hurst: float) -> None:
+    r"""
+    Davies-Harte fBM paths have zero mean at all times.
+    We average across simulated paths and check \bar B^H_{t_k} \approx 0.
+    """
+    seed = 7
+    timesteps = 2000
+    dim = 1
+    num_paths = 1500
+
+    key = jax.random.key(seed)
+    keys = jax.random.split(key, num_paths)
+
+    vmap_fbm = jax.vmap(lambda k: fractional_bm_driver(k, timesteps=timesteps, dim=dim, hurst=hurst))
+    paths = vmap_fbm(keys)
+
+    means_at_times = jnp.mean(paths.path, axis=0)
+    assert jnp.allclose(means_at_times, 0.0, atol=0.1)
+
+
+@pytest.mark.parametrize("hurst", [0.3, 0.7])
+def test_davies_harte_fbm_variance_scaling(hurst: float) -> None:
+    r"""
+    For fBM, Var[B^H_t] = t^{2H}. We regress log Var against log t
+    and expect slope \approx 2H.
+    """
+    seed = 11
+    timesteps = 3000
+    dim = 1
+    num_paths = 1200
+
+    key = jax.random.key(seed)
+    keys = jax.random.split(key, num_paths)
+
+    vmap_fbm = jax.vmap(lambda k: fractional_bm_driver(k, timesteps=timesteps, dim=dim, hurst=hurst))
+    paths = vmap_fbm(keys)
+
+    times = jnp.linspace(0.0, 1.0, timesteps + 1)
+    variances = jnp.var(paths.path, axis=0, ddof=1)
+
+    t = times[1:]
+    v = variances[1:]
+    logt = jnp.log(t)
+    logv = jnp.log(v)
+    slope, _ = jnp.polyfit(logt, logv, 1)
+
+    expected = 2.0 * hurst
+    assert jnp.isclose(slope, expected, atol=0.15)
+
+
+@pytest.mark.parametrize("hurst", [0.3, 0.7])
+def test_davies_harte_fbm_gaussianity(hurst: float) -> None:
+    r"""
+    For fixed t_k, B^H_{t_k} is Gaussian with Var t_k^{2H}.
+    Standardising Z_k = B^H_{t_k} / t_k^H yields ~ N(0,1): mean ~0, var ~1,
+    and reasonable skew/kurtosis.
+    """
+    seed = 17
+    timesteps = 2500
+    dim = 1
+    num_paths = 1500
+
+    key = jax.random.key(seed)
+    keys = jax.random.split(key, num_paths)
+
+    vmap_fbm = jax.vmap(lambda k: fractional_bm_driver(k, timesteps=timesteps, dim=dim, hurst=hurst))
+    paths = vmap_fbm(keys)
+
+    test_indices = [500, 1000, 2000]
+    times = jnp.array(test_indices) / timesteps
+
+    for idx, t in zip(test_indices, times):
+        B_k = paths.path[:, idx, :].flatten()
+        Z_k = B_k / (t ** hurst)
+
+        mean_Z = jnp.mean(Z_k)
+        var_Z = jnp.var(Z_k, ddof=1)
+        assert jnp.isclose(mean_Z, 0.0, atol=0.1)
+        assert jnp.isclose(var_Z, 1.0, atol=0.2)
+
+        # Simple skew / kurtosis checks
+        std_Z = jnp.sqrt(var_Z)
+        z = (Z_k - mean_Z) / std_Z
+        skew = jnp.mean(z ** 3)
+        kurt = jnp.mean(z ** 4)
+        assert jnp.abs(skew) < 0.5
+        assert jnp.abs(kurt - 3.0) < 1.0
 
 
 @pytest.mark.parametrize("seed", [0, 1])
