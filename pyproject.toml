@@ -1,6 +1,6 @@
 [project]
 name = "quicksig"
-version = "0.1.2"
+version = "0.2.0"
 description = "A fast path signature and log signature computation library using JAX."
 readme = "README.md"
 requires-python = ">=3.12"
