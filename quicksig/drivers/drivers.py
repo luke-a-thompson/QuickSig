@@ -1,7 +1,6 @@
 import jax
 import jax.numpy as jnp
-import jax.lax as lax
-from quicksig.rde.rde_types import Path
+from quicksig.paths.paths import Path
 
 
 def bm_driver(key: jax.Array, timesteps: int, dim: int) -> Path:

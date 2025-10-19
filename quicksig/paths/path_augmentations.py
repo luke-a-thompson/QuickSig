@@ -3,7 +3,7 @@ import jax
 import jax.numpy as jnp
 from typing import Any, Callable, Sequence
 
-from quicksig.rde.rde_types import Path, pathify
+from quicksig.paths.paths import Path, pathify
 
 
 def augment_path(
