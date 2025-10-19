@@ -121,10 +121,10 @@ def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float)
         g = gamma(k_vals, hurst)
         r = jnp.concatenate([g, jnp.array([0.0]), jnp.flip(g)[:-1]])
 
-        # Step 1 (eigenvalues)
-        j = jnp.arange(0, 2 * timesteps)
-        k = 2 * timesteps - 1
-        lk = jnp.fft.fft(r * jnp.exp(2 * jnp.pi * 1j * k * j * (1 / (2 * timesteps))))[::-1].real
+        # Step 1 (eigenvalues of the circulant embedding)
+        # For Davies–Harte, the eigenvalues are the real part of the FFT of the
+        # circulant embedding vector r. No additional phasing or reordering.
+        lk = jnp.fft.fft(r).real
 
         # Step 2 (get random variables)
         key1, key2, key3 = jax.random.split(key, 3)
@@ -144,15 +144,23 @@ def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float)
         Vj = Vj.at[indices1, :].set(rvs)
         Vj = Vj.at[indices2, :].set(rvs)
 
-        # Step 3 (compute Z)
-        wk = jnp.zeros(2 * timesteps, dtype=jnp.complex64)
-        wk = wk.at[0].set(jnp.sqrt(lk[0] / (2 * timesteps)) * Vj[0, 0])
-        wk = wk.at[1:timesteps].set(jnp.sqrt(lk[1:timesteps] / (4 * timesteps)) * (Vj[1:timesteps, 0] + 1j * Vj[1:timesteps, 1]))
-        wk = wk.at[timesteps].set(jnp.sqrt(lk[timesteps] / (2 * timesteps)) * Vj[timesteps, 0])
-        wk = wk.at[timesteps + 1 : 2 * timesteps].set(
-            jnp.sqrt(lk[timesteps + 1 : 2 * timesteps] / (4 * timesteps)) * (jnp.flip(Vj[1:timesteps, 0]) - 1j * jnp.flip(Vj[1:timesteps, 1]))
-        )
+        # Step 3 (compute Z) — construct Hermitian-symmetric spectrum with correct normalization
+        N = 2 * timesteps
+        # Numerical safety: clip tiny negatives to zero
+        lk = jnp.maximum(lk, 0.0)
 
+        wk = jnp.zeros(N, dtype=jnp.complex64)
+        # k = 0
+        wk = wk.at[0].set(jnp.sqrt(lk[0]) * Vj[0, 0])
+        # 1..T-1
+        wk = wk.at[1:timesteps].set(jnp.sqrt(lk[1:timesteps] / 2.0) * (Vj[1:timesteps, 0] + 1j * Vj[1:timesteps, 1]))
+        # k = T
+        wk = wk.at[timesteps].set(jnp.sqrt(lk[timesteps]) * Vj[timesteps, 0])
+        # T+1..N-1 via conjugate symmetry
+        wk = wk.at[timesteps + 1 : N].set(jnp.conj(wk[timesteps - 1 : 0 : -1]))
+
+        # Adjust for JAX ifft normalization (1/N). Multiply by sqrt(N) to achieve 1/sqrt(N) overall.
+        wk = jnp.sqrt(jnp.asarray(N, dtype=wk.dtype)) * wk
         Z = jnp.fft.ifft(wk)
         fGn = Z[0:timesteps].real
         fBm = jnp.cumsum(fGn) * (timesteps ** (-hurst))
