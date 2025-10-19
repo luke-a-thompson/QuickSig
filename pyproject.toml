@@ -1,6 +1,6 @@
 [project]
 name = "quicksig"
-version = "0.1.1"
+version = "0.1.2"
 description = "A fast path signature and log signature computation library using JAX."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -38,10 +38,10 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/yourusername/quicksig"
-"Bug Reports" = "https://github.com/yourusername/quicksig/issues"
-"Source" = "https://github.com/yourusername/quicksig"
-"Documentation" = "https://github.com/yourusername/quicksig#readme"
+"Homepage" = "https://github.com/luke-a-thompson/QuickSig"
+"Bug Reports" = "https://github.com/luke-a-thompson/QuickSig/issues"
+"Source" = "https://github.com/luke-a-thompson/QuickSig"
+"Documentation" = "https://github.com/luke-a-thompson/QuickSig/blob/master/README.md"
 
 [project.optional-dependencies]
 cuda = ["jax[cuda12]>=0.6.0"]
