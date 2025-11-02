@@ -3,10 +3,10 @@ import jax.numpy as jnp
 from quicksig.hopf_algebras.rooted_trees import Forest, print_forest
 
 
-def test_render_forest_markdown_minimal() -> None:
+def test_render_forest_markdown_minimal_vertical() -> None:
     parent = jnp.array([[-1, 0, 0]], dtype=jnp.int32)
     batch = Forest(parent=parent)
-    md = print_forest(batch)
+    md = print_forest(batch, layout="vertical")
     expected = """
 ```
 •
@@ -16,4 +16,23 @@ def test_render_forest_markdown_minimal() -> None:
 """.strip()
     assert md == expected, (
         f"Rendered markdown does not match expected. Got:\n{md}\nExpected:\n{expected}"
+    )
+
+
+def test_render_forest_markdown_minimal_centered() -> None:
+    parent = jnp.array([[-1, 0, 0]], dtype=jnp.int32)
+    batch = Forest(parent=parent)
+    md = print_forest(batch, layout="centered")
+    expected = (
+        """
+```
+    •
+  ┌─┴─┐
+  │   │
+  •   •
+```
+"""
+    ).strip()
+    assert md == expected, (
+        f"Rendered markdown (centered) does not match expected. Got:\n{md}\nExpected:\n{expected}"
     )
