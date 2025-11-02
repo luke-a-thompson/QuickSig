@@ -182,7 +182,6 @@ def test_rl_gaussianity(rl_samples: Path) -> None:
     We check mean \(\approx 0\), variance \(\approx 1\), and normality via skew/kurtosis.
     """
     paths = rl_samples.path
-    num_paths = paths.shape[0]
     timesteps = paths.shape[1] - 1
     hurst = 0.3
 
