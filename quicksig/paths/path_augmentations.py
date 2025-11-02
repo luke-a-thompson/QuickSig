@@ -1,9 +1,8 @@
 import functools
-import jax
 import jax.numpy as jnp
-from typing import Any, Callable, Sequence
+from typing import Any, Callable
 
-from quicksig.paths.paths import Path, pathify
+from quicksig.paths.paths import Path
 
 
 def augment_path(
@@ -42,7 +41,11 @@ def augment_path(
             sliding_windower_aug = aug
         elif func_to_check is dyadic_windower:
             dyadic_windower_aug = aug
-        elif func_to_check in [basepoint_augmentation, time_augmentation, lead_lag_augmentation]:
+        elif func_to_check in [
+            basepoint_augmentation,
+            time_augmentation,
+            lead_lag_augmentation,
+        ]:
             path_augmentations.append(aug)
         else:
             raise ValueError(f"Unknown augmentation: {func_to_check}")
@@ -77,7 +80,9 @@ def basepoint_augmentation(path: Path) -> Path:
         Augmented path object with a zero row prepended to the input path's data.
     """
     assert path.path.ndim == 2
-    augmented_path_array = jnp.concatenate([jnp.zeros((1, path.ambient_dimension)), path.path], axis=0)
+    augmented_path_array = jnp.concatenate(
+        [jnp.zeros((1, path.ambient_dimension)), path.path], axis=0
+    )
 
     return Path(
         path=augmented_path_array,
@@ -158,12 +163,17 @@ def dyadic_windower(path: Path, window_depth: int) -> list[list[Path]]:
     seq_len = path.path.shape[0]
 
     if 2 ** (window_depth + 1) > seq_len:
-        raise ValueError(f"window_depth {window_depth} is too large for path of length {seq_len}." f" This may result in windows with less than 2 points.")
+        raise ValueError(
+            f"window_depth {window_depth} is too large for path of length {seq_len}."
+            f" This may result in windows with less than 2 points."
+        )
 
     all_windows_info = []
     for d in range(window_depth + 1):
         num_windows = 2**d
-        boundaries = jnp.floor(jnp.linspace(0, seq_len, num_windows + 1)).astype(jnp.int32)
+        boundaries = jnp.floor(jnp.linspace(0, seq_len, num_windows + 1)).astype(
+            jnp.int32
+        )
         split_indices = boundaries[1:-1].tolist()
         path_windows_at_depth_d = path.split_at_time(split_indices)
         all_windows_info.append(path_windows_at_depth_d)
@@ -191,9 +201,13 @@ def lead_lag_augmentation(leading_path: Path, lagging_path: Path) -> Path:
                     and lagging paths are different.
     """
     if leading_path.path.shape[0] != lagging_path.path.shape[0]:
-        raise ValueError("The number of time steps in the leading and lagging paths must be the same.")
+        raise ValueError(
+            "The number of time steps in the leading and lagging paths must be the same."
+        )
     if leading_path.interval != lagging_path.interval:
-        raise ValueError("The intervals of the leading and lagging paths must be the same.")
+        raise ValueError(
+            "The intervals of the leading and lagging paths must be the same."
+        )
 
     # Lag the lagging path by one time step.
     lag = jnp.concatenate([lagging_path.path[:1], lagging_path.path[:-1]], axis=0)
@@ -205,41 +219,3 @@ def lead_lag_augmentation(leading_path: Path, lagging_path: Path) -> Path:
         path=lead_lag_path_array,
         interval=leading_path.interval,
     )
-
-
-if __name__ == "__main__":
-    path_array = jnp.array(
-        [
-            [1.0, 2.0],
-            [3.0, 4.0],
-            [5.0, 6.0],
-            [7.0, 8.0],
-            [9.0, 10.0],
-            [11.0, 12.0],
-            [13.0, 14.0],
-            [15.0, 16.0],
-            [17.0, 18.0],
-            [19.0, 20.0],
-            [21.0, 22.0],
-            [23.0, 24.0],
-            [25.0, 26.0],
-            [27.0, 28.0],
-            [29.0, 30.0],
-            [31.0, 32.0],
-        ]
-    )
-    path_obj = pathify(path_array)
-    depth = 2
-    print(path_obj)
-    print(f"\nDyadic windows with depth {depth}:")
-
-    windows_info = dyadic_windower(path_obj, depth)
-
-    for d, windows_at_depth in enumerate(windows_info):
-        print(f"\n--- Depth {d} ---")
-        print(f"Number of windows: {len(windows_at_depth)}")
-        for i, window in enumerate(windows_at_depth):
-            print(f"  Window {i} (length {window.path.shape[0]}):")
-            print(window)
-
-    print(non_overlapping_windower(path_obj, 8))
