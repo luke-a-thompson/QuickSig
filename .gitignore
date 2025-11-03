@@ -9,6 +9,7 @@ wheels/
 *.egg-info
 .coverage
 .pytest_cache/
+.vscode/
 # Virtual environments
 .venv
 

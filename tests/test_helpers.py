@@ -33,7 +33,13 @@ def test_gbm_shape_and_positive(num_timesteps: int, n_features: int) -> None:
     assert jnp.all(path > 0.0), "GBM should remain positive"
 
 
-def generate_scalar_path(key: jax.Array, n_features: int, num_timesteps: int, mu: float = 0.5, sigma: float = 0.3) -> jax.Array:
+def generate_scalar_path(
+    key: jax.Array,
+    n_features: int,
+    num_timesteps: int,
+    mu: float = 0.5,
+    sigma: float = 0.3,
+) -> jax.Array:
     """
     Generate a multi-dimensional path following geometric Brownian motion (GBM).
     Uses JAX for random number generation and path computation.
@@ -79,7 +85,9 @@ def generate_scalar_path(key: jax.Array, n_features: int, num_timesteps: int, mu
     return values
 
 
-def generate_linear_path(n_features: int, start: float = 0.0, stop: float = 1.0, num_timesteps: int = 100) -> jax.Array:
+def generate_linear_path(
+    n_features: int, start: float = 0.0, stop: float = 1.0, num_timesteps: int = 100
+) -> jax.Array:
     """Deterministic straight-line path for ground-truth tests."""
     t = jnp.linspace(start, stop, num_timesteps).reshape(-1, 1)  # (steps, 1)
     vals = jnp.repeat(t, n_features, axis=1)  # (steps, n_features)  # (steps, n_features)

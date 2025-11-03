@@ -90,7 +90,9 @@ def _chen_identity(lhs_signature: Signature, rhs_signature: Signature) -> Signat
     if lhs_signature.ambient_dimension != rhs_signature.ambient_dimension:
         raise ValueError("Signatures must have the same ambient_dimension.")
     if lhs_signature.depth != rhs_signature.depth:
-        raise ValueError(f"Signatures must have the same depth. Got: {lhs_signature.depth} and {rhs_signature.depth}")
+        raise ValueError(
+            f"Signatures must have the same depth. Got: {lhs_signature.depth} and {rhs_signature.depth}"
+        )
 
     if lhs_signature.interval[1] != rhs_signature.interval[0]:
         gap = rhs_signature.interval[0] - lhs_signature.interval[1]
@@ -104,12 +106,18 @@ and rhs signature (interval {rhs_signature.interval})."""
     depth = lhs_signature.depth
 
     # Reshape flattened signature terms back to their tensor structure
-    lhs_unflat = [term.reshape((ambient_dim,) * (i + 1)) for i, term in enumerate(lhs_signature.signature)]
-    rhs_unflat = [term.reshape((ambient_dim,) * (i + 1)) for i, term in enumerate(rhs_signature.signature)]
+    lhs_unflat = [
+        term.reshape((ambient_dim,) * (i + 1)) for i, term in enumerate(lhs_signature.signature)
+    ]
+    rhs_unflat = [
+        term.reshape((ambient_dim,) * (i + 1)) for i, term in enumerate(rhs_signature.signature)
+    ]
 
     cross_terms_unflat = cauchy_convolution(lhs_unflat, rhs_unflat, depth, lhs_unflat)
 
-    new_signature_terms_unflat = [lhs + rhs + cross for lhs, rhs, cross in zip(lhs_unflat, rhs_unflat, cross_terms_unflat)]
+    new_signature_terms_unflat = [
+        lhs + rhs + cross for lhs, rhs, cross in zip(lhs_unflat, rhs_unflat, cross_terms_unflat)
+    ]
 
     # Flatten the terms back to the convention used by compute_path_signature
     new_signature_terms_flat = [term.flatten() for term in new_signature_terms_unflat]

@@ -61,7 +61,9 @@ def compute_path_signature(
     """
     assert depth > 0 and isinstance(depth, int), "Depth must be a positive integer."
     if path.ndim == 1:
-        raise ValueError(f"QuickSig requires 2D arrays of shape [seq_len, n_features]. Got shape: {path.shape}. \n Consider using path.reshape(-1, 1).")
+        raise ValueError(
+            f"QuickSig requires 2D arrays of shape [seq_len, n_features]. Got shape: {path.shape}. \n Consider using path.reshape(-1, 1)."
+        )
     seq_len, n_features = path.shape
     assert seq_len >= 0, "Sequence length must be non-negative."
 
@@ -69,7 +71,9 @@ def compute_path_signature(
     # signature terms are zero and there are no stream/incremental outputs.
     if seq_len <= 1:
         if mode == "full":
-            zero_terms = [jnp.zeros((n_features ** (i + 1),), dtype=path.dtype) for i in range(depth)]
+            zero_terms = [
+                jnp.zeros((n_features ** (i + 1),), dtype=path.dtype) for i in range(depth)
+            ]
             return Signature(
                 signature=zero_terms,
                 interval=(index_start, index_start + path.shape[0]),
@@ -103,7 +107,9 @@ def compute_path_signature(
 
     for k in range(1, depth):
         # Initialize accumulator: $$\text{Aux}^{(1)}_t = S^1_{0,t-1} + \tfrac{\Delta X_t}{k+1}, \quad \forall t = 1, \ldots, N-1$$
-        sig_accm = incremental_signatures[0][:-1, :] + path_increment_divided[k - 1, 1:, :]  # Shape: [seq_len - 1, n_features ** (k + 1)]
+        sig_accm = (
+            incremental_signatures[0][:-1, :] + path_increment_divided[k - 1, 1:, :]
+        )  # Shape: [seq_len - 1, n_features ** (k + 1)]
 
         for j in range(k - 1):
             # $$ p = j + 1 $$
@@ -117,12 +123,18 @@ def compute_path_signature(
 
         # This final tensor product completes the recurrence for the signature increment.
         # $$ \Delta S^{k+1}_t = \text{Aux}^{(k)}_t \otimes \Delta X_t $$
-        sig_accm = seq_tensor_product(sig_accm, path_increments[1:, :])  # Shape: [seq_len - 1, k * (n_features ** (k + 1))], order increased by 1
+        sig_accm = seq_tensor_product(
+            sig_accm, path_increments[1:, :]
+        )  # Shape: [seq_len - 1, k * (n_features ** (k + 1))], order increased by 1
 
         # Concatenate the first increment (timestep) with the rest of the signature
-        first_inc_expanded = jnp.expand_dims(first_inc_tensor_exp_terms[k], axis=0)  # Shape: [1, n_features ** (k + 1)]
+        first_inc_expanded = jnp.expand_dims(
+            first_inc_tensor_exp_terms[k], axis=0
+        )  # Shape: [1, n_features ** (k + 1)]
         # assert False, (first_inc_expanded.shape, sig_accm.shape)
-        sig_accm = jnp.concatenate([first_inc_expanded, sig_accm], axis=0)  # Shape: [k + 1, n_features ** (k + 1)]
+        sig_accm = jnp.concatenate(
+            [first_inc_expanded, sig_accm], axis=0
+        )  # Shape: [k + 1, n_features ** (k + 1)]
 
         # The depth-k signature up to time t
         incremental_signatures.append(jnp.cumsum(sig_accm, axis=0))

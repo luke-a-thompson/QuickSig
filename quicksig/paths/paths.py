@@ -3,6 +3,7 @@ from typing import Sequence, override
 import jax
 import jax.numpy as jnp
 
+
 @dataclass(frozen=True)
 class Path:
     path: jax.Array
@@ -37,7 +38,7 @@ class Path:
         if isinstance(split_indices, int):
             split_indices = [split_indices]
         full_indices = [0] + list(split_indices) + [self.path.shape[time_dim]]
-        
+
         paths = []
         for i, j in zip(full_indices[:-1], full_indices[1:]):
             time_slice = slice(i, j)
@@ -74,9 +75,9 @@ class Path:
                 time_dim_indexer += time_len
             g0 = g1 = self.interval[0] + time_dim_indexer
             new_interval = (g0, g1)
-        
+
         return Path(sub_path, new_interval)
-    
+
     @override
     def __str__(self) -> str:
         string = f"""{self.__class__.__name__}(
@@ -86,35 +87,43 @@ class Path:
     path_shape={self.path.shape}
 )"""
         return string
-    
+
     @override
     def __repr__(self) -> str:
         return self.__str__()
-    
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Path):
             raise NotImplementedError(f"Cannot compare Path with {type(other)}.")
-        
+
         return bool(jnp.allclose(self.path, other.path)) and self.interval == other.interval
-    
+
     def __add__(self, other: "Path") -> "Path":
         if self.ambient_dimension != other.ambient_dimension:
-            raise ValueError(f"Paths must have the same ambient dimension. Got {self.ambient_dimension} and {other.ambient_dimension}.")
+            raise ValueError(
+                f"Paths must have the same ambient dimension. Got {self.ambient_dimension} and {other.ambient_dimension}."
+            )
         if self.interval[1] != other.interval[0]:
-            raise ValueError(f"Paths must have contiguous intervals. Got {self.interval} and {other.interval}.")
+            raise ValueError(
+                f"Paths must have contiguous intervals. Got {self.interval} and {other.interval}."
+            )
         if self.path.ndim != other.path.ndim:
-            raise ValueError(f"Paths must have the same number of dimensions. Got {self.path.ndim} and {other.path.ndim}.")
+            raise ValueError(
+                f"Paths must have the same number of dimensions. Got {self.path.ndim} and {other.path.ndim}."
+            )
 
         time_axis = 1 if self.path.ndim == 3 else 0
         new_path = jnp.concatenate([self.path, other.path], axis=time_axis)
         new_interval = (self.interval[0], other.interval[1])
         return Path(path=new_path, interval=new_interval)
 
+
 jax.tree_util.register_pytree_node(
     Path,
     lambda p: ((p.path,), (p.interval,)),
     lambda aux, children: Path(children[0], *aux),
 )
+
 
 def pathify(stream: jax.Array) -> Path:
     """
@@ -130,6 +139,7 @@ def pathify(stream: jax.Array) -> Path:
         return Path(path=stream, interval=interval)
     else:
         raise ValueError(f"Stream must be a 2D or 3D array. Got shape {stream.shape}.")
+
 
 if __name__ == "__main__":
     # Test with 2D input - no vmap needed

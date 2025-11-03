@@ -79,9 +79,7 @@ def test_unordered_enumerator_counts(n: int) -> None:
     )
     _assert_parent_batch(parents, n)
     as_tuples = {tuple(map(int, row.tolist())) for row in parents}
-    assert len(as_tuples) == expected, (
-        f"Expected {expected} unique encodings, got {len(as_tuples)}"
-    )
+    assert len(as_tuples) == expected, f"Expected {expected} unique encodings, got {len(as_tuples)}"
 
 
 @pytest.mark.parametrize("n", [1, 2, 3, 4])

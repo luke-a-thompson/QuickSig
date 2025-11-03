@@ -32,10 +32,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-dependencies = [
-    "jax>=0.6.0",
-    "diffrax>=0.7.0",
-]
+dependencies = ["jax>=0.7.0", "diffrax>=0.7.0"]
 
 [project.urls]
 "Homepage" = "https://github.com/luke-a-thompson/QuickSig"
@@ -46,11 +43,10 @@ dependencies = [
 [project.optional-dependencies]
 cuda = ["jax[cuda12]>=0.6.0"]
 dev = [
-    "lovely-jax>=0.1.3",
+    "ruff>=0.14.3",
     "pytest>=8.3.5",
     "pytest-cov>=6.1.1",
     "pytest-timeout>=2.3.1",
-    "mypy>=1.8.0",
     "matplotlib>=3.10.1",
     "signax>=0.2.1",
     "tqdm>=4.67.1",
@@ -89,20 +85,5 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 
-[tool.black]
+[tool.ruff]
 line-length = 100
-target-version = ['py312']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''

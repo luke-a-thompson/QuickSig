@@ -2,7 +2,7 @@
 
 This module provides ``enumerate_bck_trees`` which returns all rooted
 unordered (non-plane) trees with a fixed number of nodes, using the
-Beyer–Hedetniemi (BH) successor on canonical level sequences.
+Beyer-Hedetniemi (BH) successor on canonical level sequences.
 https://combinatorialpress.com/jcmcc-articles/volume-076/an-application-of-level-sequences-to-parallel-generation-of-rootedtrees/
 """
 
@@ -36,7 +36,7 @@ def _levelseq_to_parent(levels: list[int]) -> jnp.ndarray:
 
 
 def _bh_successor(levels: list[int]) -> list[int]:
-    """Beyer–Hedetniemi successor for canonical level sequences (1-based depths)."""
+    """Beyer-Hedetniemi successor for canonical level sequences (1-based depths)."""
     n = len(levels)
 
     # p = largest index with level > 2  (1-based depths; minimal sequence has no >2)
@@ -61,7 +61,7 @@ def _bh_successor(levels: list[int]) -> list[int]:
     k = p - q
     S = levels[:]
     for i in range(p, n):
-        S[i] = S[i - k]   # copy from S (progressively), not from the old array
+        S[i] = S[i - k]  # copy from S (progressively), not from the old array
     return S
 
 

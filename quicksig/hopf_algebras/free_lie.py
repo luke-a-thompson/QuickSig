@@ -2,8 +2,10 @@ import jax
 import jax.numpy as jnp
 from quicksig.signatures.compute_log_signature import duval_generator
 
+
 def commutator(a: jax.Array, b: jax.Array) -> jax.Array:
     return a @ b - b @ a
+
 
 def _find_split_points_vectorized(
     words: jax.Array,
@@ -16,7 +18,7 @@ def _find_split_points_vectorized(
     n_words = words.shape[0]
     word_len = words.shape[1]
     splits = []
-    
+
     for i in range(n_words):
         word = words[i]
         # Try splits from right to left (longest suffix first)
@@ -26,7 +28,7 @@ def _find_split_points_vectorized(
             suffix = word[split:]
             suffix_len = suffix.shape[0]
             prefix_len = prefix.shape[0]
-            
+
             # Both prefix and suffix must be Lyndon words (or single letters)
             # Check if suffix exists in previous words
             suffix_ok = False
@@ -38,7 +40,7 @@ def _find_split_points_vectorized(
             elif suffix_len == 1:
                 # Single letter is always valid
                 suffix_ok = True
-            
+
             # Check if prefix exists (or is single letter)
             prefix_ok = False
             if prefix_len <= len(prev_words_by_len):
@@ -49,14 +51,14 @@ def _find_split_points_vectorized(
             elif prefix_len == 1:
                 # Single letter is always valid
                 prefix_ok = True
-            
+
             # Standard factorization: both parts must be valid Lyndon words
             if suffix_ok and prefix_ok:
                 split_found = split
                 break
-        
+
         splits.append(split_found)
-    
+
     return jnp.array(splits, dtype=jnp.int32)
 
 
@@ -71,22 +73,22 @@ def _compute_lyndon_level_brackets(
     n_words = words.shape[0]
     n = A.shape[-1]
     level_brackets: list[jax.Array] = []
-    
+
     # Process each word individually (Python loop, but brackets computed in JAX)
     for i in range(n_words):
         word = words[i]
         split = int(splits[i])  # Convert to Python int
-        
+
         prefix = word[:split]
         suffix = word[split:]
         suffix_len = suffix.shape[0]
-        
+
         # Find suffix bracket using vectorized lookup
         suffix_words = prev_words_by_len[suffix_len - 1]
         matches = jnp.all(suffix_words == suffix[None, :], axis=1)
         suffix_idx = jnp.argmax(matches)
         suffix_bracket = prev_brackets_by_len[suffix_len - 1][suffix_idx]
-        
+
         # Get prefix bracket
         if split == 1:
             bracket = commutator(A[prefix[0]], suffix_bracket)
@@ -96,9 +98,9 @@ def _compute_lyndon_level_brackets(
             prefix_idx = jnp.argmax(prefix_matches)
             prefix_bracket = prev_brackets_by_len[split - 1][prefix_idx]
             bracket = commutator(prefix_bracket, suffix_bracket)
-        
+
         level_brackets.append(bracket)
-    
+
     return jnp.stack(level_brackets)
 
 
@@ -109,38 +111,38 @@ def form_lyndon_brackets(
 ) -> jax.Array:
     """
     Form Lyndon brackets (commutators) for all Lyndon words up to given depth.
-    
+
     Uses the standard factorization: for a Lyndon word w = uv where v is the
     longest proper Lyndon suffix, [w] = [[u], [v]].
-    
+
     Args:
         A: [dim, n, n] array where A[i] is the i-th Lie algebra basis element.
         depth: Maximum depth (word length) to compute brackets for.
         dim: Dimension of the alphabet. If None, inferred from A.shape[0].
-    
+
     Returns:
         W: [L, n, n] stacked Lyndon bracket matrices for all words in order.
            L = total number of Lyndon words up to depth.
     """
     if dim is None:
         dim = A.shape[0]
-    
+
     # Generate Lyndon words using duval_generator
     words_by_len = duval_generator(depth, dim)
-    
+
     if not words_by_len:
         n = A.shape[-1]
         return jnp.zeros((0, n, n), dtype=A.dtype)
-    
+
     n = A.shape[-1]
     all_brackets: list[jax.Array] = []
-    
+
     for word_len_idx, words in enumerate(words_by_len):
         if words.size == 0:
             continue
-        
+
         word_length = word_len_idx + 1  # words at index k have length k+1
-        
+
         # Compute brackets for this level
         if word_length == 1:
             # Level 1: just A[i] for each word
@@ -151,12 +153,12 @@ def form_lyndon_brackets(
             level_brackets = _compute_lyndon_level_brackets(
                 words, splits, words_by_len[:word_len_idx], all_brackets, A
             )
-        
+
         all_brackets.append(level_brackets)
-    
+
     if not all_brackets:
         return jnp.zeros((0, n, n), dtype=A.dtype)
-    
+
     return jnp.concatenate(all_brackets, axis=0)  # [L, n, n]
 
 
@@ -192,7 +194,7 @@ def form_right_normed_brackets(
 
     n = A.shape[-1]
     all_brackets: list[jax.Array] = []
-    
+
     # Initialize with empty array for level 0 (will be replaced)
     prev_brackets = jnp.zeros((0, n, n), dtype=A.dtype)
     prev_words = jnp.zeros((0, 1), dtype=jnp.int32)  # Empty, shape matches length 1 words
@@ -202,7 +204,7 @@ def form_right_normed_brackets(
             continue
 
         word_length = word_len_idx + 1  # words at index k have length k+1
-        
+
         # Compute brackets for this level
         if word_length == 1:
             # Level 1: just A[i] for each word
@@ -215,7 +217,7 @@ def form_right_normed_brackets(
             match_indices = jnp.argmax(matches, axis=1)  # [N]
             suffix_brackets = prev_brackets[match_indices]  # [N, n, n]
             level_brackets = jax.vmap(commutator)(A[words[:, 0]], suffix_brackets)
-        
+
         all_brackets.append(level_brackets)
         # Update cache for next level
         prev_brackets = level_brackets
@@ -225,6 +227,7 @@ def form_right_normed_brackets(
         return jnp.zeros((0, n, n), dtype=A.dtype)
 
     return jnp.concatenate(all_brackets, axis=0)  # [L, n, n]
+
 
 def flatten_coeffs(
     lam_by_len: list[jax.Array],

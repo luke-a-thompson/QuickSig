@@ -3,7 +3,6 @@ import jax.numpy as jnp
 import pytest
 from quicksig.signatures.compute_path_signature import compute_path_signature
 from quicksig.signatures.get_signature_dim import get_signature_dim
-from tests.test_helpers import scalar_path_fixture, linear_path_fixture
 import signax
 import math
 
@@ -33,7 +32,9 @@ def test_signature_shape_stream(scalar_path_fixture: jax.Array, depth: int) -> N
 
     expected_dim = get_signature_dim(depth, channels)
     expected_shape = (num_steps - 1, expected_dim)
-    assert sig_array.shape == expected_shape, f"Expected shape {expected_shape}, got {sig_array.shape}"
+    assert sig_array.shape == expected_shape, (
+        f"Expected shape {expected_shape}, got {sig_array.shape}"
+    )
 
 
 @pytest.mark.parametrize("scalar_path_fixture", [(1, 10), (2, 10)], indirect=True)
@@ -47,7 +48,9 @@ def test_signature_shape_incremental(scalar_path_fixture: jax.Array, depth: int)
 
     expected_dim = get_signature_dim(depth, channels)
     expected_shape = (num_steps - 1, expected_dim)
-    assert sig_array.shape == expected_shape, f"Expected shape {expected_shape}, got {sig_array.shape}"
+    assert sig_array.shape == expected_shape, (
+        f"Expected shape {expected_shape}, got {sig_array.shape}"
+    )
 
 
 @pytest.mark.parametrize("linear_path_fixture", [(1, 20)], indirect=True)
@@ -65,7 +68,9 @@ def test_linear_path_exactness(linear_path_fixture: jax.Array, depth: int) -> No
 
     expected = jnp.array([delta_x**k / math.factorial(k) for k in range(1, depth + 1)])
 
-    assert jnp.allclose(signature, expected, atol=1e-4, rtol=1e-4), f"Signature {signature} does not match expected {expected}"
+    assert jnp.allclose(signature, expected, atol=1e-4, rtol=1e-4), (
+        f"Signature {signature} does not match expected {expected}"
+    )
 
 
 def test_zero_path_vanishes() -> None:
@@ -120,7 +125,9 @@ def test_quadratic_path_signature(a: float, b: float) -> None:
         ]
     )
 
-    assert jnp.allclose(signature, expected, atol=1e-5, rtol=1e-5), f"Signature {signature} does not match expected {expected}"
+    assert jnp.allclose(signature, expected, atol=1e-5, rtol=1e-5), (
+        f"Signature {signature} does not match expected {expected}"
+    )
 
 
 @pytest.mark.parametrize("scalar_path_fixture", [(1, 10), (2, 10)], indirect=True)

@@ -22,7 +22,9 @@ def bm_driver(key: jax.Array, timesteps: int, dim: int) -> Path:
     return Path(path, (0, timesteps + 1))
 
 
-def correlate_bm_driver_against_reference(reference_path: Path, indep_path: Path, rho: float) -> Path:
+def correlate_bm_driver_against_reference(
+    reference_path: Path, indep_path: Path, rho: float
+) -> Path:
     """
     Correlates a Brownian motion path against a reference path by their increments.
 
@@ -40,7 +42,9 @@ def correlate_bm_driver_against_reference(reference_path: Path, indep_path: Path
     """
 
     if reference_path.path.shape != indep_path.path.shape:
-        raise ValueError(f"Reference path and indep path must have the same shape. Got shapes {reference_path.path.shape} and {indep_path.path.shape}")
+        raise ValueError(
+            f"Reference path and indep path must have the same shape. Got shapes {reference_path.path.shape} and {indep_path.path.shape}"
+        )
     if rho < -1 or rho > 1:
         raise ValueError(f"rho must be between -1 and 1. Got {rho}")
 
@@ -74,9 +78,13 @@ def correlated_bm_drivers(indep_bm_paths: Path, corr_matrix: jax.Array) -> Path:
     """
     num_paths = indep_bm_paths.path.shape[0]
     if corr_matrix.shape != (num_paths, num_paths):
-        raise ValueError(f"Received {num_paths} paths, but got a correlation matrix with shape {corr_matrix.shape}. Corr matrix must be shape (num_paths, num_paths).")
+        raise ValueError(
+            f"Received {num_paths} paths, but got a correlation matrix with shape {corr_matrix.shape}. Corr matrix must be shape (num_paths, num_paths)."
+        )
     if not jnp.allclose(jnp.diag(corr_matrix), 1.0):
-        raise ValueError(f"The diagonal of the correlation matrix must be 1. Got {jnp.diag(corr_matrix)}")
+        raise ValueError(
+            f"The diagonal of the correlation matrix must be 1. Got {jnp.diag(corr_matrix)}"
+        )
     if not jnp.allclose(corr_matrix, corr_matrix.T):
         raise ValueError("The correlation matrix must be symmetric.")
 
@@ -114,7 +122,9 @@ def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float)
     """
 
     def get_path(key: jax.Array, timesteps: int, hurst: float) -> jax.Array:
-        gamma = lambda k, H: 0.5 * (jnp.abs(k - 1) ** (2 * H) - 2 * jnp.abs(k) ** (2 * H) + jnp.abs(k + 1) ** (2 * H))
+        gamma = lambda k, H: 0.5 * (
+            jnp.abs(k - 1) ** (2 * H) - 2 * jnp.abs(k) ** (2 * H) + jnp.abs(k + 1) ** (2 * H)
+        )
 
         k_vals = jnp.arange(0, timesteps)
         g = gamma(k_vals, hurst)
@@ -152,7 +162,9 @@ def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float)
         # k = 0
         wk = wk.at[0].set(jnp.sqrt(lk[0]) * Vj[0, 0])
         # 1..T-1
-        wk = wk.at[1:timesteps].set(jnp.sqrt(lk[1:timesteps] / 2.0) * (Vj[1:timesteps, 0] + 1j * Vj[1:timesteps, 1]))
+        wk = wk.at[1:timesteps].set(
+            jnp.sqrt(lk[1:timesteps] / 2.0) * (Vj[1:timesteps, 0] + 1j * Vj[1:timesteps, 1])
+        )
         # k = T
         wk = wk.at[timesteps].set(jnp.sqrt(lk[timesteps]) * Vj[timesteps, 0])
         # T+1..N-1 via conjugate symmetry
@@ -175,7 +187,7 @@ def riemann_liouville_driver(
     key: jax.Array,
     timesteps: int,
     hurst: float,
-    bm_path,                      # Path: Brownian path for W1(t) INCLUDING t=0, shape (T+1, dim)
+    bm_path,  # Path: Brownian path for W1(t) INCLUDING t=0, shape (T+1, dim)
 ):
     """
     Hybrid scheme (kappa = 1) for the RL/type-II fBM driver used in rBergomi.
@@ -196,25 +208,25 @@ def riemann_liouville_driver(
     assert bm_path.num_timesteps == timesteps + 1, "bm_path must have shape (timesteps+1, dim)."
 
     dim = bm_path.ambient_dimension
-    Δ   = 1.0 / timesteps
-    α   = hurst - 0.5
+    Δ = 1.0 / timesteps
+    α = hurst - 0.5
     sqrt2H = jnp.sqrt(2.0 * hurst)
 
     # Brownian increments ΔW_k, k=1..T (var = Δ)
-    dW = jnp.diff(bm_path.path, axis=0)                         # (T, dim)
+    dW = jnp.diff(bm_path.path, axis=0)  # (T, dim)
 
     # Recent-interval integral I_k = a ΔW_k + b Z_k (Z ⟂ ΔW, i.i.d. N(0,1))
-    a = (Δ ** α) / (α + 1.0)
+    a = (Δ**α) / (α + 1.0)
     var_I = (Δ ** (2.0 * α + 1.0)) / (2.0 * α + 1.0)
     # numerical guard in case of float underflow:
     b = jnp.sqrt(jnp.maximum(var_I - (a * a) * Δ, 0.0))
 
-    Z = jax.random.normal(key, shape=dW.shape)                  # (T, dim)
-    I = a * dW + b * Z                                          # (T, dim)
+    Z = jax.random.normal(key, shape=dW.shape)  # (T, dim)
+    I = a * dW + b * Z  # (T, dim)
 
     # Historical weights w_i for i=2..T
-    i = jnp.arange(2, timesteps + 1, dtype=dW.dtype)            # (T-1,)
-    w = (Δ ** α) * (i ** (α + 1.0) - (i - 1.0) ** (α + 1.0)) / (α + 1.0)  # (T-1,)
+    i = jnp.arange(2, timesteps + 1, dtype=dW.dtype)  # (T-1,)
+    w = (Δ**α) * (i ** (α + 1.0) - (i - 1.0) ** (α + 1.0)) / (α + 1.0)  # (T-1,)
 
     # Convolution Y2_k = sum_{i=2}^k w_i ΔW_{k+1-i}, with Y2_1 = 0.
     # We compute this per dimension. For speed and exact indexing, use FFT.
@@ -223,21 +235,22 @@ def riemann_liouville_driver(
         L = int(2 ** jnp.ceil(jnp.log2(w.shape[0] + x.shape[0] - 1)))
         wf = jnp.fft.rfft(jnp.pad(w, (0, L - w.shape[0])))
         xf = jnp.fft.rfft(jnp.pad(x, (0, L - x.shape[0])))
-        y  = jnp.fft.irfft(wf * xf, n=L)[: w.shape[0] + x.shape[0] - 1]
+        y = jnp.fft.irfft(wf * xf, n=L)[: w.shape[0] + x.shape[0] - 1]
         return y
 
         # x is ΔW[0:T-1] (i.e., ΔW_1..ΔW_{T-1}); Y2_k for k>=2 is y[k-2]
+
     def per_dim(x):
-        y = conv_full_1d(w, x[:-1])                         # length 2T-3
+        y = conv_full_1d(w, x[:-1])  # length 2T-3
         return jnp.concatenate([jnp.zeros((1,), x.dtype), y[: timesteps - 1]])  # (T,)
 
     Y2 = jnp.stack([per_dim(dW[:, d]) for d in range(dim)], axis=1)  # (T, dim)
 
-
     # Assemble Y_k values and prepend Y_0=0
-    Y_tail = sqrt2H * (I + Y2)                                  # (T, dim)
+    Y_tail = sqrt2H * (I + Y2)  # (T, dim)
     Y_path = jnp.concatenate([jnp.zeros((1, dim), Y_tail.dtype), Y_tail], axis=0)
     return Path(Y_path, bm_path.interval)
+
 
 if __name__ == "__main__":
     # Example: generate and plot 1000 Riemann–Liouville drivers using vmap
@@ -254,7 +267,9 @@ if __name__ == "__main__":
     rl_keys = jax.random.split(key_rl, batch_size)
 
     batched_bm_paths = jax.vmap(bm_driver, in_axes=(0, None, None))(bm_keys, timesteps, dim)
-    batched_rl_paths = jax.vmap(riemann_liouville_driver, in_axes=(0, None, None, 0))(rl_keys, timesteps, hurst, batched_bm_paths)
+    batched_rl_paths = jax.vmap(riemann_liouville_driver, in_axes=(0, None, None, 0))(
+        rl_keys, timesteps, hurst, batched_bm_paths
+    )
 
     rl_paths_np = jax.device_get(batched_rl_paths.path)
 

@@ -3,7 +3,6 @@ import jax.numpy as jnp
 import pytest
 from quicksig.signatures.compute_path_signature import compute_path_signature
 from quicksig.signatures.signature_types import Signature, LogSignature, _chen_identity
-from tests.test_helpers import scalar_path_fixture
 
 
 @pytest.mark.parametrize("scalar_path_fixture", [(1, 20), (2, 30)], indirect=True)
@@ -195,7 +194,10 @@ def test_chen_identity_mismatched_depth(scalar_path_fixture: jax.Array, depth: i
 def test_signature_str_representation():
     """Test the __str__ method of Signature class."""
     # Create a simple signature for testing
-    signature_terms = [jnp.array([[1.0, 2.0], [3.0, 4.0]]), jnp.array([[[5.0, 6.0], [7.0, 8.0]]])]
+    signature_terms = [
+        jnp.array([[1.0, 2.0], [3.0, 4.0]]),
+        jnp.array([[[5.0, 6.0], [7.0, 8.0]]]),
+    ]
     sig = Signature(
         signature=signature_terms,
         interval=(0.0, 1.0),

@@ -59,7 +59,9 @@ def compute_log_signature(
             log_sig_tensors = tensor_log(signature.signature, n_features)
         elif log_signature_type == "Lyndon words":
             indices = duval_generator(depth, n_features)
-            log_signature_expanded = tensor_log(signature.signature, n_features, flatten_output=False)
+            log_signature_expanded = tensor_log(
+                signature.signature, n_features, flatten_output=False
+            )
             log_sig_tensors = compress(log_signature_expanded, indices)
         else:
             raise ValueError(f"Invalid log signature type: {log_signature_type}")
@@ -134,7 +136,9 @@ def index_select(input: jax.Array, indices: jax.Array) -> jax.Array:
 
     dim_first_axis = input.shape[0]
     ndim_input_tensor = input.ndim
-    n_components_in_indices = indices.shape[1]  # Number of components in each Lyndon word (row of indices)
+    n_components_in_indices = indices.shape[
+        1
+    ]  # Number of components in each Lyndon word (row of indices)
 
     # If Lyndon words have more components than the tensor has dimensions,
     # the tensor is degenerate w.r.t this basis. All projections are zero.

@@ -1,6 +1,4 @@
 import pytest
-from quicksig.signatures.compute_path_signature import compute_path_signature
-from jax import random
 
 
 paths = [

@@ -1,12 +1,13 @@
 import jax
 import jax.numpy as jnp
 
+
 def lie_polynomial(bracket_basis: jax.Array, lie_coefficients: jax.Array) -> jax.Array:
     """Form the Lie series matrix: C = sum_w lam_w * W[w].
-    
+
     A lie polynomial is a linear combination of Lie brackets (commutators).
     It is a truncation of an infinite Lie series.
-    
+
     Works with any bracket basis (e.g., right-normed or Lyndon) as long as the
     coefficients are in the same ordering as the brackets.
 
@@ -16,7 +17,7 @@ def lie_polynomial(bracket_basis: jax.Array, lie_coefficients: jax.Array) -> jax
 
     Returns:
         [n, n] array of the Lie series matrix.
-        
+
     Example:
         For log signature in Lyndon coordinates:
         >>> log_sig = compute_log_signature(path, depth, log_signature_type="Lyndon words")
@@ -25,5 +26,7 @@ def lie_polynomial(bracket_basis: jax.Array, lie_coefficients: jax.Array) -> jax
         >>> lie_elem = lie_polynomial(brackets, coeffs)
     """
     if bracket_basis.shape[0] != lie_coefficients.shape[0]:
-        raise ValueError(f"Coefficient count {lie_coefficients.shape[0]} does not match number of brackets {bracket_basis.shape[0]}.")
+        raise ValueError(
+            f"Coefficient count {lie_coefficients.shape[0]} does not match number of brackets {bracket_basis.shape[0]}."
+        )
     return jnp.tensordot(lie_coefficients, bracket_basis, axes=1)  # [n, n]

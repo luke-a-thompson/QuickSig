@@ -40,7 +40,9 @@ def seq_tensor_product(x: jax.Array, y: jax.Array) -> jax.Array:
 
     # add singleton axes **once** instead of in a Python loop
     x_bcast = jnp.reshape(x, x.shape + (1,) * b_rank)
-    y_bcast = jnp.reshape(y, y.shape[:1] + (1,) * a_rank + y.shape[1:])  # Only take first dim (sequence)
+    y_bcast = jnp.reshape(
+        y, y.shape[:1] + (1,) * a_rank + y.shape[1:]
+    )  # Only take first dim (sequence)
 
     return x_bcast * y_bcast
 
@@ -69,7 +71,9 @@ def restricted_tensor_exp(x: jax.Array, depth: int) -> list[jax.Array]:
     return terms
 
 
-def cauchy_convolution(x: list[jax.Array], y: list[jax.Array], depth: int, S_levels_shapes: list[jax.Array]) -> list[jax.Array]:
+def cauchy_convolution(
+    x: list[jax.Array], y: list[jax.Array], depth: int, S_levels_shapes: list[jax.Array]
+) -> list[jax.Array]:
     r"""
     Computes the degree-m component of the graded tensor-concatenation product
     or Cauchy convolution product in the truncated free tensor algebra.
@@ -86,7 +90,6 @@ def cauchy_convolution(x: list[jax.Array], y: list[jax.Array], depth: int, S_lev
     out = [jnp.zeros_like(S_levels_shapes[k]) for k in range(depth)]
     # order-1 term is zero as there is no way to split $$1 = (p+1)+(q+1)$$ with $$p,q ≥ 0$$
     for i in range(1, depth):  # i is the index for out, e.g., out[i] is order i+1
-
         # we want $$Z^{(i+1)} = \sum_{(j+1)+(k+1)=i+1} X^{(j+1)}⊗Y^{(k+1)}$$
         # i.e. we want to sum over all ways to split $$i+1 = (j+1)+(k+1)$$ with $$j,k ≥ 0$$
         acc = jnp.zeros_like(out[i])
@@ -99,9 +102,13 @@ def cauchy_convolution(x: list[jax.Array], y: list[jax.Array], depth: int, S_lev
     return out
 
 
-def tensor_log(sig_levels: list[jax.Array], n_features: int, flatten_output: bool = True) -> list[jax.Array]:
+def tensor_log(
+    sig_levels: list[jax.Array], n_features: int, flatten_output: bool = True
+) -> list[jax.Array]:
     """Compute the log of a tensor."""
-    assert isinstance(sig_levels, list), "sig_levels must be a list of jax.Array signatures per level"
+    assert isinstance(sig_levels, list), (
+        "sig_levels must be a list of jax.Array signatures per level"
+    )
 
     # Reshape each level to have the proper tensor structurey
     sig_levels = [lvl.reshape((n_features,) * (k + 1)) for k, lvl in enumerate(sig_levels)]
@@ -115,7 +122,9 @@ def tensor_log(sig_levels: list[jax.Array], n_features: int, flatten_output: boo
         result = [res + coef * p for res, p in zip(result, tensor_exp_lvl)]
         if n < len(sig_levels):  # $$S^{⊗(n+1)}$$
             # Math note: We must use the Cauchy product because the atomic tensor product is not defined for lists of signatures.
-            tensor_exp_lvl = cauchy_convolution(tensor_exp_lvl, sig_levels, len(sig_levels), sig_levels)
+            tensor_exp_lvl = cauchy_convolution(
+                tensor_exp_lvl, sig_levels, len(sig_levels), sig_levels
+            )
 
     # --- flatten ------------------------------------
     if flatten_output:

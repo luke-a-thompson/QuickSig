@@ -171,9 +171,7 @@ def dyadic_windower(path: Path, window_depth: int) -> list[list[Path]]:
     all_windows_info = []
     for d in range(window_depth + 1):
         num_windows = 2**d
-        boundaries = jnp.floor(jnp.linspace(0, seq_len, num_windows + 1)).astype(
-            jnp.int32
-        )
+        boundaries = jnp.floor(jnp.linspace(0, seq_len, num_windows + 1)).astype(jnp.int32)
         split_indices = boundaries[1:-1].tolist()
         path_windows_at_depth_d = path.split_at_time(split_indices)
         all_windows_info.append(path_windows_at_depth_d)
@@ -205,9 +203,7 @@ def lead_lag_augmentation(leading_path: Path, lagging_path: Path) -> Path:
             "The number of time steps in the leading and lagging paths must be the same."
         )
     if leading_path.interval != lagging_path.interval:
-        raise ValueError(
-            "The intervals of the leading and lagging paths must be the same."
-        )
+        raise ValueError("The intervals of the leading and lagging paths must be the same.")
 
     # Lag the lagging path by one time step.
     lag = jnp.concatenate([lagging_path.path[:1], lagging_path.path[:-1]], axis=0)

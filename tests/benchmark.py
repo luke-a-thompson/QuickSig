@@ -3,9 +3,7 @@ from typing import Literal, TypedDict
 import jax.numpy as jnp
 import argparse
 import json
-import time
 from pathlib import Path
-from typing import TypedDict, Literal
 from tests.test_helpers import generate_scalar_path
 import jax
 from tqdm import tqdm
@@ -26,7 +24,9 @@ class Baselines(TypedDict):
 
 
 # Allow up to 1 standard deviation difference
-def is_regression(current_mean: float, current_std: float, baseline_mean: float, baseline_std: float) -> bool:
+def is_regression(
+    current_mean: float, current_std: float, baseline_mean: float, baseline_std: float
+) -> bool:
     """Return True if current performance is significantly worse than baseline."""
     return current_mean > baseline_mean + baseline_std
 
@@ -108,15 +108,25 @@ def benchmark_signature(
 
         print(f"\nSignature Benchmark Results on {jax_device.upper()}")
         print("-" * 100)
-        print(f"{'Steps':<10} {'Channels':<10} {'Depth':<10} {'QuickSig (μs)':<30} {'Signax (μs)':<30}")
+        print(
+            f"{'Steps':<10} {'Channels':<10} {'Depth':<10} {'QuickSig (μs)':<30} {'Signax (μs)':<30}"
+        )
         print("-" * 100)
 
         results = []
 
         for _, (num_timesteps, channels, depth) in (
-            pbar := tqdm(enumerate(_DEFAULT_COMBINATIONS), desc="Benchmarking combinations", position=0, leave=False, total=len(_DEFAULT_COMBINATIONS))
+            pbar := tqdm(
+                enumerate(_DEFAULT_COMBINATIONS),
+                desc="Benchmarking combinations",
+                position=0,
+                leave=False,
+                total=len(_DEFAULT_COMBINATIONS),
+            )
         ):
-            pbar.set_description(f"Benchmarking (steps={num_timesteps}, channels={channels}, depth={depth})")
+            pbar.set_description(
+                f"Benchmarking (steps={num_timesteps}, channels={channels}, depth={depth})"
+            )
 
             # Clear JAX cache before each combination to ensure consistent memory usage
             jax.clear_caches()
@@ -124,7 +134,11 @@ def benchmark_signature(
             path = generate_scalar_path(KEY, num_timesteps, channels)
 
             # QuickSig benchmark
-            compiled_quicksig = jax.jit(lambda x: quicksig.signatures.compute_path_signature(x, depth=depth, mode="full").flatten())
+            compiled_quicksig = jax.jit(
+                lambda x: quicksig.signatures.compute_path_signature(
+                    x, depth=depth, mode="full"
+                ).flatten()
+            )
             _ = compiled_quicksig(path)
 
             # Signax benchmark
@@ -172,18 +186,28 @@ def benchmark_signature(
                     has_regression = True
 
             # Format the medians
-            quicksig_text = f"{quicksig_median:.1f} ± {2*quicksig_std:.1f}"
-            signax_text = f"{signax_median:.1f} ± {2*signax_std:.1f}"
+            quicksig_text = f"{quicksig_median:.1f} ± {2 * quicksig_std:.1f}"
+            signax_text = f"{signax_median:.1f} ± {2 * signax_std:.1f}"
 
             # Add regression marker
             regression_marker = " [REGRESSION]" if is_regression_case else ""
             quicksig_text_with_marker = quicksig_text + regression_marker
 
-            results.append((str(num_timesteps), str(channels), str(depth), quicksig_text_with_marker, signax_text))
+            results.append(
+                (
+                    str(num_timesteps),
+                    str(channels),
+                    str(depth),
+                    quicksig_text_with_marker,
+                    signax_text,
+                )
+            )
 
             # Update baseline if requested
             if update_baseline:
-                baselines["baselines"][key] = BenchmarkResult(median_us=quicksig_median, std_us=quicksig_std)
+                baselines["baselines"][key] = BenchmarkResult(
+                    median_us=quicksig_median, std_us=quicksig_std
+                )
 
         if update_baseline:
             _save_baselines(baselines)
@@ -201,10 +225,29 @@ def benchmark_signature(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run signature benchmarks")
-    parser.add_argument("--check-regression", action="store_true", help="Check for performance regressions", default=True)
-    parser.add_argument("--update-baseline", action="store_true", help="Update baseline performance metrics")
-    parser.add_argument("--device", choices=["cpu", "gpu"], default="gpu", help="JAX device to use for computations")
+    parser.add_argument(
+        "--check-regression",
+        action="store_true",
+        help="Check for performance regressions",
+        default=True,
+    )
+    parser.add_argument(
+        "--update-baseline",
+        action="store_true",
+        help="Update baseline performance metrics",
+    )
+    parser.add_argument(
+        "--device",
+        choices=["cpu", "gpu"],
+        default="gpu",
+        help="JAX device to use for computations",
+    )
     args = parser.parse_args()
 
     # benchmark_signature(jax_device="cpu", n_runs=100, check_regression=args.check_regression, update_baseline=args.update_baseline)
-    benchmark_signature(jax_device="gpu", n_runs=100, check_regression=args.check_regression, update_baseline=args.update_baseline)
+    benchmark_signature(
+        jax_device="gpu",
+        n_runs=100,
+        check_regression=args.check_regression,
+        update_baseline=args.update_baseline,
+    )

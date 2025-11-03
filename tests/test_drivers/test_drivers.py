@@ -1,6 +1,11 @@
 import jax
 import jax.numpy as jnp
-from quicksig.drivers.drivers import bm_driver, correlate_bm_driver_against_reference, riemann_liouville_driver, fractional_bm_driver
+from quicksig.drivers.drivers import (
+    bm_driver,
+    correlate_bm_driver_against_reference,
+    riemann_liouville_driver,
+    fractional_bm_driver,
+)
 from quicksig.paths.paths import Path
 import pytest
 
@@ -62,7 +67,11 @@ def test_bm_increment_mean_and_variance(bm_samples: Path) -> None:
 
     expected_increment_var = 1.0 / timesteps
     empirical_increment_var = jnp.var(increments, ddof=1)
-    assert jnp.isclose(empirical_increment_var, expected_increment_var, atol=0.1 * expected_increment_var)
+    assert jnp.isclose(
+        empirical_increment_var,
+        expected_increment_var,
+        atol=0.1 * expected_increment_var,
+    )
 
 
 def test_bm_zero_mean_at_all_times(bm_samples: Path) -> None:
@@ -107,7 +116,9 @@ def test_correlated_bm_driver_correlation(seed: int, rho: float, timesteps: int,
 
     # Also test correlation with the second path
     increments2 = jnp.diff(path2.path, axis=0)
-    empirical_corr_vs_path2 = jnp.corrcoef(increments2.flatten(), correlated_increments.flatten())[0, 1]
+    empirical_corr_vs_path2 = jnp.corrcoef(increments2.flatten(), correlated_increments.flatten())[
+        0, 1
+    ]
     expected_corr_vs_path2 = jnp.sqrt(1 - rho**2)
     assert jnp.isclose(empirical_corr_vs_path2, expected_corr_vs_path2, atol=1e-1)
 
@@ -128,7 +139,9 @@ def rl_samples() -> Path:
     vmap_bm = jax.vmap(lambda k: bm_driver(k, timesteps=timesteps, dim=1))
     bm_paths = vmap_bm(bm_keys)
 
-    vmap_rl = jax.vmap(lambda k, bm: riemann_liouville_driver(k, timesteps=timesteps, hurst=hurst, bm_path=bm))
+    vmap_rl = jax.vmap(
+        lambda k, bm: riemann_liouville_driver(k, timesteps=timesteps, hurst=hurst, bm_path=bm)
+    )
     rl_paths = vmap_rl(keys, bm_paths)
 
     return rl_paths
@@ -172,7 +185,9 @@ def test_rl_marginal_variance_scaling(rl_samples: Path) -> None:
             ratio = jnp.squeeze(var_k) / theoretical_var  # make scalar
             tolerance = 3.0 / (num_paths**0.5)
 
-            assert jnp.isclose(ratio, 1.0, atol=tolerance), f"Variance ratio at t={float(t):.3f} is {float(ratio):.3f}, expected ~1.0 ± {tolerance:.3f}"
+            assert jnp.isclose(ratio, 1.0, atol=tolerance), (
+                f"Variance ratio at t={float(t):.3f} is {float(ratio):.3f}, expected ~1.0 ± {tolerance:.3f}"
+            )
 
 
 def test_rl_gaussianity(rl_samples: Path) -> None:
@@ -201,16 +216,24 @@ def test_rl_gaussianity(rl_samples: Path) -> None:
             mean_Z = jnp.mean(Z_k)
             var_Z = jnp.var(Z_k, ddof=1)
 
-            assert jnp.isclose(mean_Z, 0.0, atol=0.1), f"Standardized mean at t={float(t):.3f} is {float(mean_Z):.3f}, expected ~0.0"
-            assert jnp.isclose(var_Z, 1.0, atol=0.2), f"Standardized variance at t={float(t):.3f} is {float(var_Z):.3f}, expected ~1.0"
+            assert jnp.isclose(mean_Z, 0.0, atol=0.1), (
+                f"Standardized mean at t={float(t):.3f} is {float(mean_Z):.3f}, expected ~0.0"
+            )
+            assert jnp.isclose(var_Z, 1.0, atol=0.2), (
+                f"Standardized variance at t={float(t):.3f} is {float(var_Z):.3f}, expected ~1.0"
+            )
 
             # Jarque-Bera test (simplified - just check skewness and kurtosis)
             skew = jnp.mean(((Z_k - mean_Z) / jnp.sqrt(var_Z)) ** 3)
             kurt = jnp.mean(((Z_k - mean_Z) / jnp.sqrt(var_Z)) ** 4)
 
             # For normality: skew ≈ 0, kurt ≈ 3
-            assert jnp.abs(skew) < 0.5, f"Skewness at t={float(t):.3f} is {float(skew):.3f}, expected ~0.0"
-            assert jnp.abs(kurt - 3.0) < 1.0, f"Kurtosis at t={float(t):.3f} is {float(kurt):.3f}, expected ~3.0"
+            assert jnp.abs(skew) < 0.5, (
+                f"Skewness at t={float(t):.3f} is {float(skew):.3f}, expected ~0.0"
+            )
+            assert jnp.abs(kurt - 3.0) < 1.0, (
+                f"Kurtosis at t={float(t):.3f} is {float(kurt):.3f}, expected ~3.0"
+            )
 
 
 def test_rl_correlation_with_bm(rl_samples: Path) -> None:
@@ -244,7 +267,9 @@ def test_rl_correlation_with_bm(rl_samples: Path) -> None:
 
     # Generate RL paths using the correlated BM
     hurst = 0.3
-    vmap_rl = jax.vmap(lambda k, bm: riemann_liouville_driver(k, timesteps=timesteps, hurst=hurst, bm_path=bm))
+    vmap_rl = jax.vmap(
+        lambda k, bm: riemann_liouville_driver(k, timesteps=timesteps, hurst=hurst, bm_path=bm)
+    )
     rl_paths = vmap_rl(rl_keys, correlated_bm)
 
     # Compute increments of both BM and RL
@@ -260,7 +285,9 @@ def test_rl_correlation_with_bm(rl_samples: Path) -> None:
 
     # The RL process should have some correlation with the underlying BM
     # (though not necessarily equal to rho due to the RL transformation)
-    assert jnp.abs(empirical_corr) > 0.1, f"Correlation between BM and RL increments is {float(empirical_corr):.3f}, expected > 0.1"
+    assert jnp.abs(empirical_corr) > 0.1, (
+        f"Correlation between BM and RL increments is {float(empirical_corr):.3f}, expected > 0.1"
+    )
 
 
 @pytest.mark.parametrize("hurst", [0.3, 0.5, 0.7])
@@ -294,13 +321,18 @@ def test_rl_multivariate_correlation_preservation(hurst: float) -> None:
         base = bm_driver(k, timesteps=N, dim=dim)
         inc = jnp.diff(base.path, axis=0)  # (N, dim)
         corr_inc = inc @ chol.T  # (N, dim)
-        new_path = jnp.concatenate([jnp.zeros((1, dim), dtype=corr_inc.dtype), jnp.cumsum(corr_inc, axis=0)], axis=0)
+        new_path = jnp.concatenate(
+            [jnp.zeros((1, dim), dtype=corr_inc.dtype), jnp.cumsum(corr_inc, axis=0)],
+            axis=0,
+        )
         return Path(new_path, base.interval)
 
     bm_paths = jax.vmap(correlated_bm_path)(bm_keys)
 
     # Apply RL driver channelwise
-    rl_paths = jax.vmap(lambda rk, bp: riemann_liouville_driver(rk, timesteps=N, hurst=hurst, bm_path=bp))(rl_keys, bm_paths)
+    rl_paths = jax.vmap(
+        lambda rk, bp: riemann_liouville_driver(rk, timesteps=N, hurst=hurst, bm_path=bp)
+    )(rl_keys, bm_paths)
 
     # Pool RL increments across time and batch, compute empirical correlation matrix
     rl_increments = jnp.diff(rl_paths.path, axis=1)  # (M, N, dim)
@@ -310,7 +342,10 @@ def test_rl_multivariate_correlation_preservation(hurst: float) -> None:
 
     max_err = jnp.max(jnp.abs(emp_corr - corr))
     tol = 0.08 if hurst < 0.5 else 0.05
-    assert max_err <= tol, f"Max entrywise correlation error {float(max_err):.3f} exceeds {tol:.2f}\n" f"Empirical:\n{emp_corr}\nTarget:\n{corr}"
+    assert max_err <= tol, (
+        f"Max entrywise correlation error {float(max_err):.3f} exceeds {tol:.2f}\n"
+        f"Empirical:\n{emp_corr}\nTarget:\n{corr}"
+    )
 
 
 @pytest.mark.parametrize("hurst", [0.3, 0.5, 0.7])
@@ -329,7 +364,9 @@ def test_davies_harte_fbm_terminal_variance(hurst: float) -> None:
     key = jax.random.key(seed)
     keys = jax.random.split(key, num_paths)
 
-    vmap_fbm = jax.vmap(lambda k: fractional_bm_driver(k, timesteps=timesteps, dim=dim, hurst=hurst))
+    vmap_fbm = jax.vmap(
+        lambda k: fractional_bm_driver(k, timesteps=timesteps, dim=dim, hurst=hurst)
+    )
     paths = vmap_fbm(keys)
 
     terminal = paths.path[:, -1, 0]
@@ -337,7 +374,9 @@ def test_davies_harte_fbm_terminal_variance(hurst: float) -> None:
 
     # Tolerance scales with 1/sqrt(M). Use a modest cushion.
     tol = 5.0 / jnp.sqrt(num_paths)
-    assert jnp.isclose(var_emp, 1.0, atol=float(tol)), f"Empirical Var[B^H_1]={float(var_emp):.3f} not close to 1.0 for H={hurst}"
+    assert jnp.isclose(var_emp, 1.0, atol=float(tol)), (
+        f"Empirical Var[B^H_1]={float(var_emp):.3f} not close to 1.0 for H={hurst}"
+    )
 
 
 @pytest.mark.parametrize("hurst", [0.3, 0.5, 0.7])
@@ -354,7 +393,9 @@ def test_davies_harte_fbm_zero_mean(hurst: float) -> None:
     key = jax.random.key(seed)
     keys = jax.random.split(key, num_paths)
 
-    vmap_fbm = jax.vmap(lambda k: fractional_bm_driver(k, timesteps=timesteps, dim=dim, hurst=hurst))
+    vmap_fbm = jax.vmap(
+        lambda k: fractional_bm_driver(k, timesteps=timesteps, dim=dim, hurst=hurst)
+    )
     paths = vmap_fbm(keys)
 
     means_at_times = jnp.mean(paths.path, axis=0)
@@ -375,7 +416,9 @@ def test_davies_harte_fbm_variance_scaling(hurst: float) -> None:
     key = jax.random.key(seed)
     keys = jax.random.split(key, num_paths)
 
-    vmap_fbm = jax.vmap(lambda k: fractional_bm_driver(k, timesteps=timesteps, dim=dim, hurst=hurst))
+    vmap_fbm = jax.vmap(
+        lambda k: fractional_bm_driver(k, timesteps=timesteps, dim=dim, hurst=hurst)
+    )
     paths = vmap_fbm(keys)
 
     times = jnp.linspace(0.0, 1.0, timesteps + 1)
@@ -406,7 +449,9 @@ def test_davies_harte_fbm_gaussianity(hurst: float) -> None:
     key = jax.random.key(seed)
     keys = jax.random.split(key, num_paths)
 
-    vmap_fbm = jax.vmap(lambda k: fractional_bm_driver(k, timesteps=timesteps, dim=dim, hurst=hurst))
+    vmap_fbm = jax.vmap(
+        lambda k: fractional_bm_driver(k, timesteps=timesteps, dim=dim, hurst=hurst)
+    )
     paths = vmap_fbm(keys)
 
     test_indices = [500, 1000, 2000]
@@ -414,7 +459,7 @@ def test_davies_harte_fbm_gaussianity(hurst: float) -> None:
 
     for idx, t in zip(test_indices, times):
         B_k = paths.path[:, idx, :].flatten()
-        Z_k = B_k / (t ** hurst)
+        Z_k = B_k / (t**hurst)
 
         mean_Z = jnp.mean(Z_k)
         var_Z = jnp.var(Z_k, ddof=1)
@@ -424,8 +469,8 @@ def test_davies_harte_fbm_gaussianity(hurst: float) -> None:
         # Simple skew / kurtosis checks
         std_Z = jnp.sqrt(var_Z)
         z = (Z_k - mean_Z) / std_Z
-        skew = jnp.mean(z ** 3)
-        kurt = jnp.mean(z ** 4)
+        skew = jnp.mean(z**3)
+        kurt = jnp.mean(z**4)
         assert jnp.abs(skew) < 0.5
         assert jnp.abs(kurt - 3.0) < 1.0
 

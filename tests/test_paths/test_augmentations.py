@@ -11,7 +11,6 @@ from quicksig.paths.path_augmentations import (
     dyadic_windower,
 )
 from quicksig.paths.paths import pathify, Path
-from tests.test_helpers import generate_scalar_path
 
 _test_key = jax.random.PRNGKey(42)
 
@@ -20,7 +19,12 @@ _test_key = jax.random.PRNGKey(42)
     "input_path_array, expected_shape, expected_first_row",
     [
         pytest.param(jnp.array([[1, 2], [3, 4]]), (3, 2), jnp.array([0.0, 0.0]), id="2x2_path"),
-        pytest.param(jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]), (4, 3), jnp.array([0.0, 0.0, 0.0]), id="3x3_path"),
+        pytest.param(
+            jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]),
+            (4, 3),
+            jnp.array([0.0, 0.0, 0.0]),
+            id="3x3_path",
+        ),
         pytest.param(jnp.array([[1.5, 2.5]]), (2, 2), jnp.array([0.0, 0.0]), id="1x2_path"),
     ],
 )
@@ -39,8 +43,18 @@ def test_basepoint_augmentation_valid_inputs(input_path_array, expected_shape, e
     "input_path_array, expected_shape, expected_time_values",
     [
         pytest.param(jnp.array([[1, 2], [3, 4]]), (2, 3), jnp.array([0.0, 1.0]), id="2x2_path"),
-        pytest.param(jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]), (3, 4), jnp.array([0.0, 0.5, 1.0]), id="3x3_path"),
-        pytest.param(jnp.array([[1.5, 2.5], [3.5, 4.5], [5.5, 6.5], [7.5, 8.5]]), (4, 3), jnp.array([0.0, 1.0/3.0, 2.0/3.0, 1.0]), id="4x2_path"),
+        pytest.param(
+            jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]),
+            (3, 4),
+            jnp.array([0.0, 0.5, 1.0]),
+            id="3x3_path",
+        ),
+        pytest.param(
+            jnp.array([[1.5, 2.5], [3.5, 4.5], [5.5, 6.5], [7.5, 8.5]]),
+            (4, 3),
+            jnp.array([0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0]),
+            id="4x2_path",
+        ),
     ],
 )
 def test_time_augmentation_valid_inputs(input_path_array, expected_shape, expected_time_values):
@@ -59,29 +73,59 @@ def test_time_augmentation_valid_inputs(input_path_array, expected_shape, expect
 @pytest.mark.parametrize(
     "leading_path_array, lagging_path_array, expected_output",
     [
-        pytest.param(jnp.array([[1.0], [2.0], [3.0]]), jnp.array([[0.1], [0.2], [0.3]]), jnp.array([[1.0, 0.1], [2.0, 0.1], [3.0, 0.2]]), id="1D_paths"),
-        pytest.param(jnp.array([[1.0, 2.0], [3.0, 4.0]]), jnp.array([[0.1, 0.2], [0.3, 0.4]]), jnp.array([[1.0, 2.0, 0.1, 0.2], [3.0, 4.0, 0.1, 0.2]]), id="2D_paths"),
-        pytest.param(jnp.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]), jnp.array([[0.1], [0.3], [0.5]]), jnp.array([[1.0, 2.0, 0.1], [3.0, 4.0, 0.1], [5.0, 6.0, 0.3]]), id="2D_leading_1D_lagging"),
+        pytest.param(
+            jnp.array([[1.0], [2.0], [3.0]]),
+            jnp.array([[0.1], [0.2], [0.3]]),
+            jnp.array([[1.0, 0.1], [2.0, 0.1], [3.0, 0.2]]),
+            id="1D_paths",
+        ),
+        pytest.param(
+            jnp.array([[1.0, 2.0], [3.0, 4.0]]),
+            jnp.array([[0.1, 0.2], [0.3, 0.4]]),
+            jnp.array([[1.0, 2.0, 0.1, 0.2], [3.0, 4.0, 0.1, 0.2]]),
+            id="2D_paths",
+        ),
+        pytest.param(
+            jnp.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]),
+            jnp.array([[0.1], [0.3], [0.5]]),
+            jnp.array([[1.0, 2.0, 0.1], [3.0, 4.0, 0.1], [5.0, 6.0, 0.3]]),
+            id="2D_leading_1D_lagging",
+        ),
     ],
 )
-def test_lead_lag_augmentation_valid_inputs(leading_path_array, lagging_path_array, expected_output):
+def test_lead_lag_augmentation_valid_inputs(
+    leading_path_array, lagging_path_array, expected_output
+):
     """Test lead_lag_augmentation with valid inputs."""
     leading_path = pathify(leading_path_array)
     lagging_path = pathify(lagging_path_array)
     result = lead_lag_augmentation(leading_path, lagging_path)
 
     assert isinstance(result, Path)
-    assert result.path.shape == (leading_path.path.shape[0], leading_path.path.shape[1] + lagging_path.path.shape[1])
+    assert result.path.shape == (
+        leading_path.path.shape[0],
+        leading_path.path.shape[1] + lagging_path.path.shape[1],
+    )
     assert jnp.allclose(result.path, expected_output)
-    assert result.ambient_dimension == leading_path.ambient_dimension + lagging_path.ambient_dimension
+    assert (
+        result.ambient_dimension == leading_path.ambient_dimension + lagging_path.ambient_dimension
+    )
     assert result.interval == leading_path.interval
 
 
 @pytest.mark.parametrize(
     "leading_path_array, lagging_path_array",
     [
-        pytest.param(jnp.array([[1.0], [2.0], [3.0]]), jnp.array([[0.1], [0.2]]), id="leading_longer"),
-        pytest.param(jnp.array([[1.0], [2.0]]), jnp.array([[0.1], [0.2], [0.3]]), id="lagging_longer"),
+        pytest.param(
+            jnp.array([[1.0], [2.0], [3.0]]),
+            jnp.array([[0.1], [0.2]]),
+            id="leading_longer",
+        ),
+        pytest.param(
+            jnp.array([[1.0], [2.0]]),
+            jnp.array([[0.1], [0.2], [0.3]]),
+            id="lagging_longer",
+        ),
     ],
 )
 def test_lead_lag_augmentation_mismatched_lengths(leading_path_array, lagging_path_array):
@@ -95,13 +139,39 @@ def test_lead_lag_augmentation_mismatched_lengths(leading_path_array, lagging_pa
 @pytest.mark.parametrize(
     "input_path_array, window_size, expected_num_windows, expected_shapes",
     [
-        pytest.param(jnp.array([[1, 2], [3, 4], [5, 6], [7, 8]]), 2, 2, [(2, 2), (2, 2)], id="4x2_path_window_2"),
-        pytest.param(jnp.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], [11, 12]]), 3, 2, [(3, 2), (3, 2)], id="6x2_path_window_3"),
-        pytest.param(jnp.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]), 2, 3, [(2, 2), (2, 2), (1, 2)], id="5x2_path_window_2_remainder"),
-        pytest.param(jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]), 4, 1, [(4, 3)], id="4x3_path_window_4"),
+        pytest.param(
+            jnp.array([[1, 2], [3, 4], [5, 6], [7, 8]]),
+            2,
+            2,
+            [(2, 2), (2, 2)],
+            id="4x2_path_window_2",
+        ),
+        pytest.param(
+            jnp.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], [11, 12]]),
+            3,
+            2,
+            [(3, 2), (3, 2)],
+            id="6x2_path_window_3",
+        ),
+        pytest.param(
+            jnp.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]),
+            2,
+            3,
+            [(2, 2), (2, 2), (1, 2)],
+            id="5x2_path_window_2_remainder",
+        ),
+        pytest.param(
+            jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]),
+            4,
+            1,
+            [(4, 3)],
+            id="4x3_path_window_4",
+        ),
     ],
 )
-def test_non_overlapping_windower_valid_inputs(input_path_array, window_size, expected_num_windows, expected_shapes):
+def test_non_overlapping_windower_valid_inputs(
+    input_path_array, window_size, expected_num_windows, expected_shapes
+):
     """Test non_overlapping_windower with valid inputs."""
     input_path = pathify(input_path_array)
     result = non_overlapping_windower(input_path, window_size)
@@ -115,8 +185,22 @@ def test_non_overlapping_windower_valid_inputs(input_path_array, window_size, ex
 @pytest.mark.parametrize(
     "input_path_array, window_size, expected_windows_arrays",
     [
-        pytest.param(jnp.array([[1, 2], [3, 4], [5, 6], [7, 8]]), 2, [jnp.array([[1, 2], [3, 4]]), jnp.array([[5, 6], [7, 8]])], id="4x2_path_window_2"),
-        pytest.param(jnp.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]), 2, [jnp.array([[1, 2], [3, 4]]), jnp.array([[5, 6], [7, 8]]), jnp.array([[9, 10]])], id="5x2_path_window_2_remainder"),
+        pytest.param(
+            jnp.array([[1, 2], [3, 4], [5, 6], [7, 8]]),
+            2,
+            [jnp.array([[1, 2], [3, 4]]), jnp.array([[5, 6], [7, 8]])],
+            id="4x2_path_window_2",
+        ),
+        pytest.param(
+            jnp.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]),
+            2,
+            [
+                jnp.array([[1, 2], [3, 4]]),
+                jnp.array([[5, 6], [7, 8]]),
+                jnp.array([[9, 10]]),
+            ],
+            id="5x2_path_window_2_remainder",
+        ),
     ],
 )
 def test_non_overlapping_windower_content(input_path_array, window_size, expected_windows_arrays):
@@ -137,7 +221,9 @@ def test_non_overlapping_windower_content(input_path_array, window_size, expecte
         pytest.param(jnp.arange(16).reshape(8, 2), 0, 1, [1], id="8_points_depth_0"),
     ],
 )
-def test_dyadic_windower_valid_inputs(input_path_array, window_depth, expected_num_depths, expected_window_counts):
+def test_dyadic_windower_valid_inputs(
+    input_path_array, window_depth, expected_num_depths, expected_window_counts
+):
     """Test dyadic_windower with valid inputs."""
     input_path = pathify(input_path_array)
     result = dyadic_windower(input_path, window_depth)
@@ -166,9 +252,24 @@ def test_dyadic_windower_invalid_depth(input_path_array, window_depth):
 @pytest.mark.parametrize(
     "input_path_array, augmentations, expected_shape",
     [
-        pytest.param(jnp.array([[1, 2], [3, 4]]), [basepoint_augmentation], (3, 2), id="basepoint_augmentation"),
-        pytest.param(jnp.array([[1, 2], [3, 4]]), [time_augmentation], (2, 3), id="time_augmentation"),
-        pytest.param(jnp.array([[1, 2], [3, 4]]), [basepoint_augmentation, time_augmentation], (3, 3), id="basepoint_and_time_augmentation"),
+        pytest.param(
+            jnp.array([[1, 2], [3, 4]]),
+            [basepoint_augmentation],
+            (3, 2),
+            id="basepoint_augmentation",
+        ),
+        pytest.param(
+            jnp.array([[1, 2], [3, 4]]),
+            [time_augmentation],
+            (2, 3),
+            id="time_augmentation",
+        ),
+        pytest.param(
+            jnp.array([[1, 2], [3, 4]]),
+            [basepoint_augmentation, time_augmentation],
+            (3, 3),
+            id="basepoint_and_time_augmentation",
+        ),
         pytest.param(jnp.array([[1, 2], [3, 4]]), [], (2, 2), id="no_augmentation"),
     ],
 )
@@ -197,8 +298,12 @@ def test_augment_path_with_non_zero_start_interval():
 
     # The sub-paths should have intervals relative to the original path's interval
     assert len(windows) == 2
-    assert windows[0].interval == (10, 12), f"Expected interval (10, 12), but got {windows[0].interval}"
-    assert windows[1].interval == (12, 13), f"Expected interval (12, 13), but got {windows[1].interval}"
+    assert windows[0].interval == (10, 12), (
+        f"Expected interval (10, 12), but got {windows[0].interval}"
+    )
+    assert windows[1].interval == (12, 13), (
+        f"Expected interval (12, 13), but got {windows[1].interval}"
+    )
 
 
 def test_augment_path_unknown_augmentation():

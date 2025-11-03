@@ -176,9 +176,7 @@ def _render_tree_centered(parent: list[int], show_ids: bool) -> list[str]:
 
     # Scale positions to columns for ASCII grid
     scale = 4  # columns per unit; larger spreads subtrees further apart
-    col_pos: dict[int, int] = {
-        node: int(round(x * scale)) for node, x in x_pos_units.items()
-    }
+    col_pos: dict[int, int] = {node: int(round(x * scale)) for node, x in x_pos_units.items()}
 
     # Determine canvas size
     rows = max_depth * 3 + 1
@@ -250,9 +248,7 @@ def _render_tree_centered(parent: list[int], show_ids: bool) -> list[str]:
     return ["".join(row).rstrip() for row in canvas]
 
 
-def print_forest(
-    batch: Forest, show_node_ids: bool = False, layout: str = "centered"
-) -> str:
+def print_forest(batch: Forest, show_node_ids: bool = True, layout: str = "centered") -> str:
     """Render a ``Forest`` as a fenced Markdown code block.
 
     Args:
@@ -279,7 +275,7 @@ def print_forest(
 
 
 if __name__ == "__main__":
-    from quicksig.hopf_algebras.mkw_trees import enumerate_mkw_trees
+    from quicksig.hopf_algebras import enumerate_bck_trees
 
-    batch_mkw = enumerate_mkw_trees(5)
-    print(print_forest(batch_mkw))
+    batch_bck = enumerate_bck_trees(5)
+    print(print_forest(batch_bck))

@@ -24,7 +24,9 @@ def wz_friz_riedel_meshsize(epsilon: float, hurst: float, eta: float = 1e-8) -> 
     return epsilon ** (1.0 / alpha)
 
 
-def wz_friz_riedel_stepcount(epsilon: float, hurst: float, T: float = 1.0, eta: float = 1e-8) -> int:
+def wz_friz_riedel_stepcount(
+    epsilon: float, hurst: float, T: float = 1.0, eta: float = 1e-8
+) -> int:
     """
     Minimum uniform-grid step count to reach epsilon accuracy on [0, T].
 
