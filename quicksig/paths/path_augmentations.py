@@ -1,14 +1,14 @@
 import functools
 import jax.numpy as jnp
-from typing import Any, Callable
+from typing import Callable
 
 from quicksig.paths.paths import Path
 
 
 def augment_path(
     path: Path,
-    augmentations: list[Callable[[Path], Any]],
-) -> Any:
+    augmentations: list[Callable[[Path], Path]],
+) -> Path:
     """Augment the path with a list of augmentations.
 
     Path augmentations (`basepoint_augmentation`, `time_augmentation`) are

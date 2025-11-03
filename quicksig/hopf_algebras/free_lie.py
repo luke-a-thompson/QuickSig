@@ -71,7 +71,6 @@ def _compute_lyndon_level_brackets(
 ) -> jax.Array:
     """Compute brackets for a level of Lyndon words."""
     n_words = words.shape[0]
-    n = A.shape[-1]
     level_brackets: list[jax.Array] = []
 
     # Process each word individually (Python loop, but brackets computed in JAX)
