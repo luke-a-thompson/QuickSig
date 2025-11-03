@@ -1,7 +1,13 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from quicksig.tensor_ops import restricted_tensor_exp, tensor_log, tensor_product, seq_tensor_product, cauchy_convolution
+from quicksig.tensor_ops import (
+    restricted_tensor_exp,
+    tensor_log,
+    tensor_product,
+    seq_tensor_product,
+    cauchy_convolution,
+)
 
 
 def test_batch_log_inverse_of_exp() -> None:
@@ -29,7 +35,9 @@ def test_batch_log_inverse_of_exp() -> None:
     exp_concatenated = jnp.concatenate(exp_terms_flat_list, axis=-1)
 
     expected_total_dim: int = sum(n_features**k for k in range(1, depth + 1))
-    assert exp_concatenated.shape == (B, expected_total_dim), f"Shape mismatch for exp_concatenated: expected {(B, expected_total_dim)}, got {exp_concatenated.shape}"
+    assert exp_concatenated.shape == (B, expected_total_dim), (
+        f"Shape mismatch for exp_concatenated: expected {(B, expected_total_dim)}, got {exp_concatenated.shape}"
+    )
 
     # 3. Compute the tensor logarithm of the exponentiated terms
     # tensor_log expects a list of unbatched tensors. vmap will pass a list of unbatched tensors
@@ -46,7 +54,9 @@ def test_batch_log_inverse_of_exp() -> None:
     assert log_concatenated.shape == (
         B,
         expected_total_dim,
-    ), f"Shape mismatch for log_of_exp_concatenated: expected {(B, expected_total_dim)}, got {log_concatenated.shape}"
+    ), (
+        f"Shape mismatch for log_of_exp_concatenated: expected {(B, expected_total_dim)}, got {log_concatenated.shape}"
+    )
 
     # 4. Extract the first term from the log series. This should be our original X.
     # The log series is L = L1 + L2 + ...
@@ -58,7 +68,9 @@ def test_batch_log_inverse_of_exp() -> None:
     # 5. Verify correctness
     # Note: Due to floating point precision and truncation depth,
     # it might not be exactly identical but should be very close.
-    assert jnp.allclose(initial_x_batched, recovered_x, atol=1e-5), f"Initial X is not close to recovered X. Max diff: {jnp.max(jnp.abs(initial_x_batched - recovered_x))}"
+    assert jnp.allclose(initial_x_batched, recovered_x, atol=1e-5), (
+        f"Initial X is not close to recovered X. Max diff: {jnp.max(jnp.abs(initial_x_batched - recovered_x))}"
+    )
 
 
 # --- New Parameterized Tests ---
@@ -75,7 +87,11 @@ def test_batch_log_inverse_of_exp() -> None:
         ((1,), (1,), (1, 1)),  # Edge case: M=1, N=1
     ],
 )
-def test_batch_tensor_product_shapes(x_shape_suffix: tuple[int, ...], y_shape_suffix: tuple[int, ...], expected_out_suffix: tuple[int, ...]) -> None:
+def test_batch_tensor_product_shapes(
+    x_shape_suffix: tuple[int, ...],
+    y_shape_suffix: tuple[int, ...],
+    expected_out_suffix: tuple[int, ...],
+) -> None:
     B: int = 4  # Batch size
     key = jax.random.PRNGKey(0)
 
@@ -87,7 +103,9 @@ def test_batch_tensor_product_shapes(x_shape_suffix: tuple[int, ...], y_shape_su
     y = jax.random.normal(key, y_shape)
 
     result = jax.vmap(tensor_product)(x, y)
-    assert result.shape == expected_shape, f"Input x:{x.shape}, y:{y.shape}. Expected {expected_shape}, got {result.shape}"
+    assert result.shape == expected_shape, (
+        f"Input x:{x.shape}, y:{y.shape}. Expected {expected_shape}, got {result.shape}"
+    )
 
 
 # Minimal value test for batch_tensor_product
@@ -136,7 +154,11 @@ def test_batch_tensor_product_values() -> None:
         ((1,), (1,), (1, 1)),  # Edge: M=1, N=1
     ],
 )
-def test_batch_seq_tensor_product_shapes(x_shape_suffix: tuple[int, ...], y_shape_suffix: tuple[int, ...], expected_out_suffix: tuple[int, ...]) -> None:
+def test_batch_seq_tensor_product_shapes(
+    x_shape_suffix: tuple[int, ...],
+    y_shape_suffix: tuple[int, ...],
+    expected_out_suffix: tuple[int, ...],
+) -> None:
     B: int = 3  # Batch size
     S: int = 5  # Sequence length
     key = jax.random.PRNGKey(1)
@@ -149,7 +171,9 @@ def test_batch_seq_tensor_product_shapes(x_shape_suffix: tuple[int, ...], y_shap
     y = jax.random.normal(key, y_shape)
 
     result = jax.vmap(seq_tensor_product)(x, y)
-    assert result.shape == expected_shape, f"Input x:{x.shape}, y:{y.shape}. Expected {expected_shape}, got {result.shape}"
+    assert result.shape == expected_shape, (
+        f"Input x:{x.shape}, y:{y.shape}. Expected {expected_shape}, got {result.shape}"
+    )
 
 
 def test_batch_seq_tensor_product_values() -> None:
@@ -179,8 +203,12 @@ def test_batch_seq_tensor_product_values() -> None:
     # and then stacking. This also indirectly tests tensor_product logic.
     # x2_b_s[:, 0, :, :] has shape (B2, M, K)
     # y2_b_s[:, 0, :] has shape (B2, N)
-    expected_s0 = jax.vmap(tensor_product)(x2_b_s[:, 0, :, :], y2_b_s[:, 0, :])  # Shape (B2, M, K, N)
-    expected_s1 = jax.vmap(tensor_product)(x2_b_s[:, 1, :, :], y2_b_s[:, 1, :])  # Shape (B2, M, K, N)
+    expected_s0 = jax.vmap(tensor_product)(
+        x2_b_s[:, 0, :, :], y2_b_s[:, 0, :]
+    )  # Shape (B2, M, K, N)
+    expected_s1 = jax.vmap(tensor_product)(
+        x2_b_s[:, 1, :, :], y2_b_s[:, 1, :]
+    )  # Shape (B2, M, K, N)
     expected_result2 = jnp.stack([expected_s0, expected_s1], axis=1)  # Shape (B2, S2, M, K, N)
 
     result2 = jax.vmap(seq_tensor_product)(x2_b_s, y2_b_s)
@@ -212,48 +240,42 @@ def test_batch_restricted_tensor_exp_output_structure(depth: int, n_features: in
     for k_idx, term in enumerate(result_list):
         order = k_idx + 1
         expected_term_shape = (B,) + (n_features,) * order
-        assert term.shape == expected_term_shape, f"Term {k_idx} (order {order}) has shape {term.shape}, expected {expected_term_shape}"
+        assert term.shape == expected_term_shape, (
+            f"Term {k_idx} (order {order}) has shape {term.shape}, expected {expected_term_shape}"
+        )
 
 
-def test_batch_restricted_tensor_exp_values() -> None:
-    B: int = 1
-    n_features: int = 2
-    # x_val_b is batched input (B=1)
-    x_val_b = jnp.array([[1.0, 2.0]])  # Shape (B, n_features)
+@pytest.mark.parametrize("depth", [1, 2, 3])
+def test_batch_restricted_tensor_exp_values(depth: int) -> None:
+    # Batched input (B=1, n_features=2)
+    x_val_b = jnp.array([[1.0, 2.0]])
 
-    # Depth 1
-    # restricted_tensor_exp is vmapped over x_val_b, depth is static
-    result_depth1 = jax.vmap(restricted_tensor_exp, in_axes=(0, None))(x_val_b, 1)
-    assert len(result_depth1) == 1
-    assert jnp.allclose(result_depth1[0], x_val_b)
+    # Compute result terms up to the given depth
+    result_terms = jax.vmap(restricted_tensor_exp, in_axes=(0, None))(x_val_b, depth)
+    assert len(result_terms) == depth
 
-    # Depth 2: (x, x^2/2!)
-    result_depth2 = jax.vmap(restricted_tensor_exp, in_axes=(0, None))(x_val_b, 2)
-    assert len(result_depth2) == 2
-    assert jnp.allclose(result_depth2[0], x_val_b)
+    # Build expected terms generically: T1 = x, Tk = Tk-1 ⊗ (x / k)
+    expected_terms: list[jax.Array] = []
+    for k in range(1, depth + 1):
+        if k == 1:
+            expected_terms.append(x_val_b)
+        else:
+            expected_terms.append(jax.vmap(tensor_product)(expected_terms[-1], x_val_b / float(k)))
 
-    # x_val_b is (B, n_features)
-    # tensor_product is vmapped over (batched x, batched x/2)
-    term2_expected = jax.vmap(tensor_product)(x_val_b, x_val_b / 2.0)
-    assert jnp.allclose(result_depth2[1], term2_expected)
-
-    # Depth 3: (x, x^2/2!, x^3/3!)
-    result_depth3 = jax.vmap(restricted_tensor_exp, in_axes=(0, None))(x_val_b, 3)
-    assert len(result_depth3) == 3
-    assert jnp.allclose(result_depth3[0], x_val_b)
-    assert jnp.allclose(result_depth3[1], term2_expected)  # From depth 2 test
-
-    # result_depth3[1] is batched (output from vmapped restricted_tensor_exp)
-    # tensor_product is vmapped over (batched term, batched x/3)
-    term3_expected = jax.vmap(tensor_product)(result_depth3[1], x_val_b / 3.0)
-    assert jnp.allclose(result_depth3[2], term3_expected)
+    for k in range(depth):
+        assert jnp.allclose(result_terms[k], expected_terms[k])
 
 
 @pytest.mark.parametrize(
     "x_terms_defs, y_terms_defs, depth, n_features",
     [
         # Case 1: Basic - X=(X1), Y=(Y1), depth=2. Expect Z=(0, X1⊗Y1)
-        ([(1,)], [(1,)], 2, 2),  # x_terms: one term of order 1  # y_terms: one term of order 1  # depth, n_features
+        (
+            [(1,)],
+            [(1,)],
+            2,
+            2,
+        ),  # x_terms: one term of order 1  # y_terms: one term of order 1  # depth, n_features
         # Case 2: X=(X1,X2), Y=(Y1), depth=3. Expect Z=(0, X1⊗Y1, X2⊗Y1)
         ([(1,), (2,)], [(1,)], 3, 2),  # x_terms: order 1, order 2  # y_terms: order 1
         # Case 3: X=(X1), Y=(Y1,Y2), depth=3. Expect Z=(0, X1⊗Y1, X1⊗Y2)
@@ -269,11 +291,20 @@ def test_batch_restricted_tensor_exp_values() -> None:
         ([(1,)], [(1,)], 2, 1),
     ],
 )
-def test_batch_cauchy_prod_logic(x_terms_defs: list[tuple[int, ...]], y_terms_defs: list[tuple[int, ...]], depth: int, n_features: int) -> None:
+def test_batch_cauchy_prod_logic(
+    x_terms_defs: list[tuple[int, ...]],
+    y_terms_defs: list[tuple[int, ...]],
+    depth: int,
+    n_features: int,
+) -> None:
     B: int = 2
-    key = jax.random.PRNGKey(sum(d[0] for d in x_terms_defs) + sum(d[0] for d in y_terms_defs) + depth + n_features)
+    key = jax.random.PRNGKey(
+        sum(d[0] for d in x_terms_defs) + sum(d[0] for d in y_terms_defs) + depth + n_features
+    )
 
-    def _create_terms(term_defs: list[tuple[int, ...]], current_key: jax.Array, batch_size: int) -> list[jax.Array]:
+    def _create_terms(
+        term_defs: list[tuple[int, ...]], current_key: jax.Array, batch_size: int
+    ) -> list[jax.Array]:
         terms = []
         for i, order_def in enumerate(term_defs):
             order = order_def[0]  # Assuming the first element in tuple is the order indicator
@@ -293,7 +324,9 @@ def test_batch_cauchy_prod_logic(x_terms_defs: list[tuple[int, ...]], y_terms_de
     S_levels_shapes: list[jax.Array] = []
     for i in range(1, depth + 1):
         s_key, subkey = jax.random.split(s_key)
-        S_levels_shapes.append(jax.random.normal(subkey, (B,) + (n_features,) * i))  # dummy content, shape is key
+        S_levels_shapes.append(
+            jax.random.normal(subkey, (B,) + (n_features,) * i)
+        )  # dummy content, shape is key
 
     # Calculate expected output manually (already batched)
     expected_out_terms: list[jax.Array] = [jnp.zeros_like(S_levels_shapes[k]) for k in range(depth)]
@@ -326,20 +359,28 @@ def test_batch_cauchy_prod_logic(x_terms_defs: list[tuple[int, ...]], y_terms_de
     #   - y_terms: each tensor in list is unstacked at axis 0
     #   - depth: static
     #   - S_levels_shapes: each tensor in list is unstacked at axis 0
-    result_terms = jax.vmap(cauchy_convolution, in_axes=(0, 0, None, 0))(x_terms, y_terms, depth, S_levels_shapes)
+    result_terms = jax.vmap(cauchy_convolution, in_axes=(0, 0, None, 0))(
+        x_terms, y_terms, depth, S_levels_shapes
+    )
 
     assert len(result_terms) == depth
     for i in range(depth):
-        assert result_terms[i].shape == S_levels_shapes[i].shape, f"Term {i} shape mismatch. Expected {S_levels_shapes[i].shape}, got {result_terms[i].shape}"
+        assert result_terms[i].shape == S_levels_shapes[i].shape, (
+            f"Term {i} shape mismatch. Expected {S_levels_shapes[i].shape}, got {result_terms[i].shape}"
+        )
         # Check if expected_out_terms[i] is non-zero or if result_terms[i] is also zero
         # This handles cases where an order might not be produced (e.g. Z1 for X=(X2), Y=(Y2))
         if jnp.any(expected_out_terms[i] != 0) or jnp.any(result_terms[i] != 0):
-            assert jnp.allclose(result_terms[i], expected_out_terms[i], atol=1e-5), f"Term {i} (order {i+1}) mismatch. Got:\n{result_terms[i]}\nExpected:\n{expected_out_terms[i]}"
+            assert jnp.allclose(result_terms[i], expected_out_terms[i], atol=1e-5), (
+                f"Term {i} (order {i + 1}) mismatch. Got:\n{result_terms[i]}\nExpected:\n{expected_out_terms[i]}"
+            )
         else:  # Both are zero, which is fine
             pass
 
 
-@pytest.mark.parametrize("depth, n_features", [(1, 3), (2, 2), (3, 2), (1, 1)])  # Edge case depth 1, n_features 1
+@pytest.mark.parametrize(
+    "depth, n_features", [(1, 3), (2, 2), (3, 2), (1, 1)]
+)  # Edge case depth 1, n_features 1
 def test_batch_tensor_log_specific_depths(depth: int, n_features: int) -> None:
     B: int = 2  # Batch size
     key = jax.random.PRNGKey(depth * 10 + n_features)
@@ -359,7 +400,9 @@ def test_batch_tensor_log_specific_depths(depth: int, n_features: int) -> None:
         # For depth > 1, construct S = exp(L) where L has only L1 = initial_x_batched and Lk=0 for k>1.
         # restricted_tensor_exp is vmapped. initial_x_batched is (B, n_features).
         # Output exp_terms_of_x is list[batched_tensor].
-        exp_terms_of_x: list[jax.Array] = jax.vmap(restricted_tensor_exp, in_axes=(0, None))(initial_x_batched, depth)
+        exp_terms_of_x: list[jax.Array] = jax.vmap(restricted_tensor_exp, in_axes=(0, None))(
+            initial_x_batched, depth
+        )
 
         # These terms form the signature S (list of batched tensors)
         sig_terms_list_batched = [term.reshape(B, -1) for term in exp_terms_of_x]
@@ -376,12 +419,20 @@ def test_batch_tensor_log_specific_depths(depth: int, n_features: int) -> None:
     # tensor_log takes (list_of_unbatched_tensors, n_features)
     # vmap handles sig_terms_list_batched (which is list[batched_tensor])
     # and provides list[unbatched_tensor_slice] to each call of tensor_log.
-    log_output_terms_batched = jax.vmap(tensor_log, in_axes=(0, None))(sig_terms_list_batched, n_features)
+    log_output_terms_batched = jax.vmap(tensor_log, in_axes=(0, None))(
+        sig_terms_list_batched, n_features
+    )
 
     # Verify shapes and values for each term (all terms are batched)
-    assert len(log_output_terms_batched) == depth, f"Expected {depth} terms, got {len(log_output_terms_batched)}"
-    for i, (output_term, expected_term) in enumerate(zip(log_output_terms_batched, expected_log_terms_batched)):
-        assert output_term.shape == expected_term.shape, f"Term {i} shape mismatch: got {output_term.shape}, expected {expected_term.shape}"
-        assert jnp.allclose(
-            output_term, expected_term, atol=1e-5
-        ), f"Term {i} value mismatch for depth={depth}, n_features={n_features}.\nGot:\n{output_term}\nExpected:\n{expected_term}"
+    assert len(log_output_terms_batched) == depth, (
+        f"Expected {depth} terms, got {len(log_output_terms_batched)}"
+    )
+    for i, (output_term, expected_term) in enumerate(
+        zip(log_output_terms_batched, expected_log_terms_batched)
+    ):
+        assert output_term.shape == expected_term.shape, (
+            f"Term {i} shape mismatch: got {output_term.shape}, expected {expected_term.shape}"
+        )
+        assert jnp.allclose(output_term, expected_term, atol=1e-5), (
+            f"Term {i} value mismatch for depth={depth}, n_features={n_features}.\nGot:\n{output_term}\nExpected:\n{expected_term}"
+        )
