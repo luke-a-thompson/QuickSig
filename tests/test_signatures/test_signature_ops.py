@@ -1,8 +1,8 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from quicksig.signatures.compute_path_signature import compute_path_signature
-from quicksig.signatures.signature_types import Signature, LogSignature, _chen_identity
+from quicksig.control_lifts.path_signature import compute_path_signature
+from quicksig.control_lifts.signature_types import Signature, LogSignature, _chen_identity
 
 
 @pytest.mark.parametrize("scalar_path_fixture", [(1, 20), (2, 30)], indirect=True)
@@ -18,7 +18,6 @@ def test_chen_identity(scalar_path_fixture: jax.Array, depth: int):
     # Compute signatures for each sub-path.
     sig_1_computed = compute_path_signature(path_1, depth=depth, mode="full")
     sig_2_computed = compute_path_signature(path_2, depth=depth, mode="full")
-
     # Re-create the signatures with intervals that are contiguous and reflect their position in the original path.
     sig_1 = Signature(
         signature=sig_1_computed.signature,
@@ -132,7 +131,6 @@ def test_chen_identity_mismatched_ambient_dimension(scalar_path_fixture: jax.Arr
 
     # Compute signatures for each sub-path.
     sig_1_computed = compute_path_signature(path_1, depth=depth, mode="full")
-    sig_2_computed = compute_path_signature(path_2, depth=depth, mode="full")
 
     # Create signatures with different ambient dimensions by padding path_2
     sig_1 = Signature(

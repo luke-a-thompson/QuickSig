@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from quicksig.signatures.compute_log_signature import duval_generator
+from quicksig.control_lifts.log_signature import duval_generator
 
 
 def commutator(a: jax.Array, b: jax.Array) -> jax.Array:
@@ -226,12 +226,3 @@ def form_right_normed_brackets(
         return jnp.zeros((0, n, n), dtype=A.dtype)
 
     return jnp.concatenate(all_brackets, axis=0)  # [L, n, n]
-
-
-def flatten_coeffs(
-    lam_by_len: list[jax.Array],
-    words_by_len: list[jax.Array],
-) -> jax.Array:
-    """Concatenate coefficients only for non-empty word buckets (alignment-safe)."""
-    lams = [lam for lam, words in zip(lam_by_len, words_by_len) if words.size != 0]
-    return jnp.concatenate(lams, axis=0) if lams else jnp.zeros((0,), dtype=jnp.float32)

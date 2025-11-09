@@ -16,12 +16,11 @@ from quicksig.hopf_algebras.free_lie import (
     form_lyndon_brackets,
     flatten_coeffs,
 )
-from quicksig.hopf_algebras.series import lie_polynomial
+from quicksig.integrators.series import form_series
 
 
 def test_commutator_basic() -> None:
     """Test basic commutator properties: [a,b] = ab - ba."""
-    n = 3
     a = jnp.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
     b = jnp.array([[9.0, 8.0, 7.0], [6.0, 5.0, 4.0], [3.0, 2.0, 1.0]])
 
@@ -33,7 +32,6 @@ def test_commutator_basic() -> None:
 
 def test_commutator_antisymmetry() -> None:
     """Test antisymmetry: [a,b] = -[b,a]."""
-    n = 2
     a = jnp.array([[1.0, 2.0], [3.0, 4.0]])
     b = jnp.array([[5.0, 6.0], [7.0, 8.0]])
 
@@ -81,7 +79,7 @@ def test_apply_lie_coeffs() -> None:
     W = jax.random.normal(jax.random.PRNGKey(12), (num_words, n, n))
     lam = jax.random.normal(jax.random.PRNGKey(13), (num_words,))
 
-    result = lie_polynomial(W, lam)
+    result = form_series(W, lam)
 
     # Should compute sum_i lam[i] * W[i]
     # Note: tensordot and explicit sum may have slightly different floating point behavior
@@ -97,7 +95,7 @@ def test_apply_lie_coeffs_shape_error() -> None:
     lam = jax.random.normal(jax.random.PRNGKey(15), (3,))  # Wrong size
 
     with pytest.raises(ValueError, match="does not match"):
-        lie_polynomial(W, lam)
+        form_series(W, lam)
 
 
 def test_flatten_coeffs() -> None:
@@ -321,7 +319,7 @@ def test_form_lyndon_brackets_gradients() -> None:
 
 def test_form_lyndon_brackets_consistency_with_duval() -> None:
     """Test that Lyndon brackets are consistent with duval_generator output."""
-    from quicksig.signatures.compute_log_signature import duval_generator
+    from quicksig.control_lifts.log_signature import duval_generator
 
     dim, n = 2, 3
     A = jax.random.normal(jax.random.PRNGKey(29), (dim, n, n))

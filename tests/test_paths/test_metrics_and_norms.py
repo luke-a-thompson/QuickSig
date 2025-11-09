@@ -1,5 +1,5 @@
 import pytest
-from quicksig.drivers.metrics_and_norms import (
+from quicksig.analytics.metrics_and_norms import (
     get_holder_alpha,
     get_minimal_signature_depth,
 )

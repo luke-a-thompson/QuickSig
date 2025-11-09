@@ -1,12 +1,12 @@
 import jax
 import jax.numpy as jnp
-from quicksig.drivers.drivers import (
+from quicksig.controls.drivers import (
     bm_driver,
     correlate_bm_driver_against_reference,
     riemann_liouville_driver,
     fractional_bm_driver,
 )
-from quicksig.paths.paths import Path
+from quicksig.controls.paths_types import Path
 import pytest
 
 

@@ -6,7 +6,7 @@ and mapping each to a parent array in preorder.
 """
 
 import jax.numpy as jnp
-from quicksig.hopf_algebras.rooted_trees import Forest
+from quicksig.hopf_algebras.hopf_algebra_types import Forest, MKWForest
 
 
 def _dyck_to_parent_preorder(dyck: list[int]) -> jnp.ndarray:
@@ -40,7 +40,7 @@ def _dyck_to_parent_preorder(dyck: list[int]) -> jnp.ndarray:
     return jnp.asarray(parent_py, dtype=jnp.int32)
 
 
-def enumerate_mkw_trees(n: int) -> Forest:
+def enumerate_mkw_trees(n: int) -> MKWForest:
     """Enumerate rooted ordered (plane) trees with ``n`` nodes.
 
     Args:
@@ -58,7 +58,7 @@ def enumerate_mkw_trees(n: int) -> Forest:
         raise ValueError("n must be >= 1")
     if n == 1:
         parents = jnp.asarray([[-1]], dtype=jnp.int32)
-        return Forest(parent=parents)
+        return MKWForest(Forest(parent=parents))
 
     m = n - 1  # number of Dyck pairs
 
@@ -79,4 +79,4 @@ def enumerate_mkw_trees(n: int) -> Forest:
 
     backtrack(0, 0, [])
     parents = jnp.stack(results_py, axis=0).astype(jnp.int32)
-    return Forest(parent=parents)
+    return MKWForest(Forest(parent=parents))

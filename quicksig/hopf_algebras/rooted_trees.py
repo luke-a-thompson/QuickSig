@@ -9,31 +9,8 @@ Conventions
 - For each tree, ``parent[0] == -1`` and for all ``i > 0``, ``0 <= parent[i] < i``.
 """
 
-from typing import NamedTuple
-
 import jax.numpy as jnp
-
-
-class Forest(NamedTuple):
-    """A batch container for a forest of rooted trees.
-
-    Parameters
-    - parent: 2D array of shape ``(num_trees, n)`` with dtype ``int32``.
-      Each row encodes one rooted tree via its parent array in preorder:
-      ``parent[0] == -1`` and for ``i > 0`` we have ``0 <= parent[i] < i``.
-
-    Notes
-    - This container is compatible with JAX; the array can be a ``jax.Array``.
-    - The number of nodes ``n`` is the same for all trees in the forest.
-
-    Example
-    >>> import jax.numpy as jnp
-    >>> forest = Forest(parent=jnp.array([[-1, 0, 0]], dtype=jnp.int32))
-    >>> forest.parent.shape
-    (1, 3)
-    """
-
-    parent: jnp.ndarray
+from quicksig.hopf_algebras.hopf_algebra_types import Forest
 
 
 def _build_children(parent: list[int]) -> list[list[int]]:
@@ -275,7 +252,7 @@ def print_forest(batch: Forest, show_node_ids: bool = True, layout: str = "cente
 
 
 if __name__ == "__main__":
-    from quicksig.hopf_algebras import enumerate_bck_trees
+    from quicksig.hopf_algebras import enumerate_mkw_trees
 
-    batch_bck = enumerate_bck_trees(5)
+    batch_bck = enumerate_mkw_trees(5)
     print(print_forest(batch_bck))

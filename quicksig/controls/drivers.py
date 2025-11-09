@@ -1,24 +1,15 @@
 import jax
 import jax.numpy as jnp
-from quicksig.paths.paths import Path
+from quicksig.controls.paths_types import Path
 
 
 def bm_driver(key: jax.Array, timesteps: int, dim: int) -> Path:
     """
     Generates a Brownian motion path.
-
-    args:
-        key:        JAX random key
-        timesteps:  number of time steps
-        dim:        dimension of the Brownian motion path
-    returns:
-        A JAX array of shape (timesteps + 1, dim) representing the Brownian motion path.
     """
-    # Interpret `timesteps` as the number of increments; output has timesteps+1 samples
     dt = 1.0 / timesteps
     increments = jax.random.normal(key, (timesteps, dim)) * jnp.sqrt(dt)
     path = jnp.concatenate([jnp.zeros((1, dim)), jnp.cumsum(increments, axis=0)], axis=0)
-    # Half-open interval: number of samples equals end - start
     return Path(path, (0, timesteps + 1))
 
 
@@ -27,20 +18,7 @@ def correlate_bm_driver_against_reference(
 ) -> Path:
     """
     Correlates a Brownian motion path against a reference path by their increments.
-
-    Args:
-        reference_path (Path): The reference path to correlate against.
-        indep_path (Path): The independent path to correlate.
-        rho (float): The correlation parameter.
-
-    Raises:
-        ValueError: If the reference path and indep path have different shapes.
-        ValueError: If the correlation parameter is not between -1 and 1.
-
-    Returns:
-        Path: The correlated path.
     """
-
     if reference_path.path.shape != indep_path.path.shape:
         raise ValueError(
             f"Reference path and indep path must have the same shape. Got shapes {reference_path.path.shape} and {indep_path.path.shape}"
@@ -48,7 +26,6 @@ def correlate_bm_driver_against_reference(
     if rho < -1 or rho > 1:
         raise ValueError(f"rho must be between -1 and 1. Got {rho}")
 
-    # Get increments of the independent paths
     reference_increments = jnp.diff(reference_path.path, axis=0)
     indep_increments = jnp.diff(indep_path.path, axis=0)
 
@@ -63,18 +40,6 @@ def correlate_bm_driver_against_reference(
 def correlated_bm_drivers(indep_bm_paths: Path, corr_matrix: jax.Array) -> Path:
     """
     Generates a new Brownian motion path that is correlated with a reference path.
-
-    It takes two independent Brownian motion paths and a 2x2 correlation matrix.
-    It returns a new path that has the desired correlation with the first path.
-    The first path is returned unchanged. This function effectively replaces the
-    second path with a correlated version.
-
-    args:
-        path1:       A JAX array of shape (timesteps + 1, dim) representing the first Brownian motion path.
-        path2:       A JAX array of shape (timesteps + 1, dim) representing the second (independent) Brownian motion path.
-        corr_matrix: 2x2 correlation matrix.
-    returns:
-        A JAX array of shape (timesteps + 1, dim) representing the new correlated Brownian motion path.
     """
     num_paths = indep_bm_paths.path.shape[0]
     if corr_matrix.shape != (num_paths, num_paths):
@@ -90,17 +55,12 @@ def correlated_bm_drivers(indep_bm_paths: Path, corr_matrix: jax.Array) -> Path:
 
     chol_matrix = jnp.linalg.cholesky(corr_matrix)
 
-    # Get increments of the independent paths
     indep_increments = jnp.diff(indep_bm_paths.path, axis=1)
 
-    # Correlate the increments
     correlated_increments = jnp.einsum("qtd,pq->ptd", indep_increments, chol_matrix)
 
-    # Cumsum to get the new path
     new_path = jnp.cumsum(correlated_increments, axis=1)
 
-    # Add zeros at the beginning to ensure Brownian motion starts at 0
-    # Shape: (batch, time, nodes) -> add zeros at time=0
     zeros_shape = (new_path.shape[0], 1, new_path.shape[2])
     new_path = jnp.concatenate([jnp.zeros(zeros_shape), new_path], axis=1)
 
@@ -110,15 +70,6 @@ def correlated_bm_drivers(indep_bm_paths: Path, corr_matrix: jax.Array) -> Path:
 def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float) -> Path:
     """
     Generates sample paths of fractional Brownian Motion using the Davies Harte method with JAX.
-
-    @author: Luke Thompson, PhD Student, University of Sydney
-    @author: Justin Yu, M.S. Financial Engineering, Stevens Institute of Technology
-
-    args:
-        key:        JAX random key
-        timesteps:  number of time steps within the timeframe
-        hurst:      Hurst parameter
-        dim:        dimension of the fBM path
     """
 
     def get_path(key: jax.Array, timesteps: int, hurst: float) -> jax.Array:
@@ -130,15 +81,10 @@ def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float)
         g = gamma(k_vals, hurst)
         r = jnp.concatenate([g, jnp.array([0.0]), jnp.flip(g)[:-1]])
 
-        # Step 1 (eigenvalues of the circulant embedding)
-        # For Davies–Harte, the eigenvalues are the real part of the FFT of the
-        # circulant embedding vector r. No additional phasing or reordering.
         lk = jnp.fft.fft(r).real
 
-        # Step 2 (get random variables)
         key1, key2, key3 = jax.random.split(key, 3)
 
-        # Generate all random numbers at once
         rvs = jax.random.normal(key1, shape=(timesteps - 1, 2))
         v_0_0 = jax.random.normal(key2)
         v_n_0 = jax.random.normal(key3)
@@ -153,24 +99,17 @@ def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float)
         Vj = Vj.at[indices1, :].set(rvs)
         Vj = Vj.at[indices2, :].set(rvs)
 
-        # Step 3 (compute Z) — construct Hermitian-symmetric spectrum with correct normalization
         N = 2 * timesteps
-        # Numerical safety: clip tiny negatives to zero
         lk = jnp.maximum(lk, 0.0)
 
         wk = jnp.zeros(N, dtype=jnp.complex64)
-        # k = 0
         wk = wk.at[0].set(jnp.sqrt(lk[0]) * Vj[0, 0])
-        # 1..T-1
         wk = wk.at[1:timesteps].set(
             jnp.sqrt(lk[1:timesteps] / 2.0) * (Vj[1:timesteps, 0] + 1j * Vj[1:timesteps, 1])
         )
-        # k = T
         wk = wk.at[timesteps].set(jnp.sqrt(lk[timesteps]) * Vj[timesteps, 0])
-        # T+1..N-1 via conjugate symmetry
         wk = wk.at[timesteps + 1 : N].set(jnp.conj(wk[timesteps - 1 : 0 : -1]))
 
-        # Adjust for JAX ifft normalization (1/N). Multiply by sqrt(N) to achieve 1/sqrt(N) overall.
         wk = jnp.sqrt(jnp.asarray(N, dtype=wk.dtype)) * wk
         Z = jnp.fft.ifft(wk)
         fGn = Z[0:timesteps].real
@@ -187,24 +126,11 @@ def riemann_liouville_driver(
     key: jax.Array,
     timesteps: int,
     hurst: float,
-    bm_path,  # Path: Brownian path for W1(t) INCLUDING t=0, shape (T+1, dim)
+    bm_path,
 ):
     """
     Hybrid scheme (kappa = 1) for the RL/type-II fBM driver used in rBergomi.
-
-    Implements (for k = 1..T, Δ=1/T, α = H-1/2):
-
-        Y_k = sqrt(2H) * [ I_k  +  sum_{i=2}^k w_i ΔW_{k+1-i} ],
-
-    where
-        I_k  ≈ a ΔW_k + b Z_k,
-        a    = Δ^α / (α+1),
-        b^2  = Δ^{2α+1}/(2α+1)  -  a^2 Δ,
-        w_i  = Δ^α * ( i^{α+1} - (i-1)^{α+1} ) / (α+1).
-
-    Returns a Path with Y_0 = 0 and Y_k on the input grid.
     """
-
     assert bm_path.num_timesteps == timesteps + 1, "bm_path must have shape (timesteps+1, dim)."
 
     dim = bm_path.ambient_dimension
@@ -212,73 +138,34 @@ def riemann_liouville_driver(
     α = hurst - 0.5
     sqrt2H = jnp.sqrt(2.0 * hurst)
 
-    # Brownian increments ΔW_k, k=1..T (var = Δ)
-    dW = jnp.diff(bm_path.path, axis=0)  # (T, dim)
+    dW = jnp.diff(bm_path.path, axis=0)
 
-    # Recent-interval integral I_k = a ΔW_k + b Z_k (Z ⟂ ΔW, i.i.d. N(0,1))
     a = (Δ**α) / (α + 1.0)
     var_I = (Δ ** (2.0 * α + 1.0)) / (2.0 * α + 1.0)
-    # numerical guard in case of float underflow:
     b = jnp.sqrt(jnp.maximum(var_I - (a * a) * Δ, 0.0))
 
-    Z = jax.random.normal(key, shape=dW.shape)  # (T, dim)
-    I = a * dW + b * Z  # (T, dim)
+    Z = jax.random.normal(key, shape=dW.shape)
+    I = a * dW + b * Z
 
-    # Historical weights w_i for i=2..T
-    i = jnp.arange(2, timesteps + 1, dtype=dW.dtype)  # (T-1,)
-    w = (Δ**α) * (i ** (α + 1.0) - (i - 1.0) ** (α + 1.0)) / (α + 1.0)  # (T-1,)
+    i = jnp.arange(2, timesteps + 1, dtype=dW.dtype)
+    w = (Δ**α) * (i ** (α + 1.0) - (i - 1.0) ** (α + 1.0)) / (α + 1.0)
 
-    # Convolution Y2_k = sum_{i=2}^k w_i ΔW_{k+1-i}, with Y2_1 = 0.
-    # We compute this per dimension. For speed and exact indexing, use FFT.
     def conv_full_1d(w, x):
-        # full convolution y[n] = sum_k w[k]*x[n-k]; we only need the first (T-1) outputs
         L = int(2 ** jnp.ceil(jnp.log2(w.shape[0] + x.shape[0] - 1)))
         wf = jnp.fft.rfft(jnp.pad(w, (0, L - w.shape[0])))
         xf = jnp.fft.rfft(jnp.pad(x, (0, L - x.shape[0])))
         y = jnp.fft.irfft(wf * xf, n=L)[: w.shape[0] + x.shape[0] - 1]
         return y
 
-        # x is ΔW[0:T-1] (i.e., ΔW_1..ΔW_{T-1}); Y2_k for k>=2 is y[k-2]
-
     def per_dim(x):
-        y = conv_full_1d(w, x[:-1])  # length 2T-3
-        return jnp.concatenate([jnp.zeros((1,), x.dtype), y[: timesteps - 1]])  # (T,)
+        y = conv_full_1d(w, x[:-1])
+        return jnp.concatenate([jnp.zeros((1,), x.dtype), y[: timesteps - 1]])
 
-    Y2 = jnp.stack([per_dim(dW[:, d]) for d in range(dim)], axis=1)  # (T, dim)
+    Y2 = jnp.stack([per_dim(dW[:, d]) for d in range(dim)], axis=1)
 
-    # Assemble Y_k values and prepend Y_0=0
-    Y_tail = sqrt2H * (I + Y2)  # (T, dim)
+    Y_tail = sqrt2H * (I + Y2)
     Y_path = jnp.concatenate([jnp.zeros((1, dim), Y_tail.dtype), Y_tail], axis=0)
     return Path(Y_path, bm_path.interval)
 
 
-if __name__ == "__main__":
-    # Example: generate and plot 1000 Riemann–Liouville drivers using vmap
-    import matplotlib.pyplot as plt
 
-    batch_size = 1000
-    timesteps = 512
-    dim = 1
-    hurst = 0.5
-
-    base_key = jax.random.PRNGKey(0)
-    key_bm, key_rl = jax.random.split(base_key)
-    bm_keys = jax.random.split(key_bm, batch_size)
-    rl_keys = jax.random.split(key_rl, batch_size)
-
-    batched_bm_paths = jax.vmap(bm_driver, in_axes=(0, None, None))(bm_keys, timesteps, dim)
-    batched_rl_paths = jax.vmap(riemann_liouville_driver, in_axes=(0, None, None, 0))(
-        rl_keys, timesteps, hurst, batched_bm_paths
-    )
-
-    rl_paths_np = jax.device_get(batched_rl_paths.path)
-
-    plt.figure(figsize=(10, 6))
-    for i in range(batch_size):
-        plt.plot(rl_paths_np[i, :, 0], linewidth=0.5, alpha=0.15, color="tab:blue")
-    plt.title(f"Riemann–Liouville drivers (H={hurst}, N={timesteps}, batch={batch_size})")
-    plt.xlabel("Time step")
-    plt.ylabel("Value")
-    plt.tight_layout()
-    plt.savefig("docs/assets/riemann_liouville_monte_carlo.png", dpi=150)
-    plt.close()

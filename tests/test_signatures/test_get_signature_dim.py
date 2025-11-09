@@ -1,5 +1,5 @@
 import pytest
-from quicksig.signatures.get_signature_dim import get_signature_dim
+from quicksig.analytics.signature_sizes import get_signature_dim
 
 
 @pytest.mark.parametrize(

@@ -31,10 +31,8 @@ class Path:
         """
         Split the path into a list of paths at the given indices.
         """
-        # Determine the time dimension (last dimension for 2D, second-to-last for 3D)
         time_dim = 0 if self.path.ndim == 2 else 1
 
-        # Add start and end indices to include the full path
         if isinstance(split_indices, int):
             split_indices = [split_indices]
         full_indices = [0] + list(split_indices) + [self.path.shape[time_dim]]
@@ -43,7 +41,6 @@ class Path:
         for i, j in zip(full_indices[:-1], full_indices[1:]):
             time_slice = slice(i, j)
             if self.path.ndim == 3:
-                # For 3D paths, slice the time dimension, keeping the batch dimension.
                 paths.append(self[slice(None), time_slice])
             else:
                 paths.append(self[time_slice])
@@ -130,21 +127,11 @@ def pathify(stream: jax.Array) -> Path:
     Converts a JAX array of a data stream into a Path object.
     """
     if stream.ndim == 2:
-        # 2D: (time_steps, features) -> treat as single path
         interval = (0, stream.shape[0])
         return Path(path=stream, interval=interval)
     elif stream.ndim == 3:
-        # 3D: (batch, time_steps, features) -> treat as single path with batch dimension
         interval = (0, stream.shape[1])
         return Path(path=stream, interval=interval)
     else:
         raise ValueError(f"Stream must be a 2D or 3D array. Got shape {stream.shape}.")
 
-
-if __name__ == "__main__":
-    # Test with 2D input - no vmap needed
-    stream_2d = jax.random.normal(jax.random.PRNGKey(42), (100, 3))
-    path_2d = pathify(stream_2d)
-    split_paths = path_2d.split_at_time([33, 66])
-    print(split_paths)
-    print(split_paths[0] + split_paths[2])

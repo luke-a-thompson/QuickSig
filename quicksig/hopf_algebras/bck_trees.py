@@ -7,7 +7,7 @@ https://combinatorialpress.com/jcmcc-articles/volume-076/an-application-of-level
 """
 
 import jax.numpy as jnp
-from quicksig.hopf_algebras.rooted_trees import Forest
+from quicksig.hopf_algebras.hopf_algebra_types import Forest, BCKForest
 
 
 def _levelseq_to_parent(levels: list[int]) -> jnp.ndarray:
@@ -65,10 +65,10 @@ def _bh_successor(levels: list[int]) -> list[int]:
     return S
 
 
-def enumerate_bck_trees(n: int) -> Forest:
+def enumerate_bck_trees(n: int) -> BCKForest:
     """Enumerate rooted unordered trees with ``n`` nodes.
 
-    Uses the Beyer–Hedetniemi successor to iterate canonical level sequences.
+    Uses the Beyer-Hedetniemi successor to iterate canonical level sequences.
 
     Args:
         n: Number of nodes per tree. Must satisfy ``n >= 1``.
@@ -84,7 +84,7 @@ def enumerate_bck_trees(n: int) -> Forest:
     if n <= 0:
         raise ValueError("n must be >= 1")
     if n == 1:
-        return Forest(parent=jnp.asarray([[-1]], dtype=jnp.int32))
+        return BCKForest(Forest(parent=jnp.asarray([[-1]], dtype=jnp.int32)))
 
     # Start and end level sequences
     levels = list(range(1, n + 1))  # [1,2,3,...,n]
@@ -98,4 +98,4 @@ def enumerate_bck_trees(n: int) -> Forest:
         levels = _bh_successor(levels)
 
     parents = jnp.stack(parents_list, axis=0).astype(jnp.int32)
-    return Forest(parent=parents)
+    return BCKForest(Forest(parent=parents))

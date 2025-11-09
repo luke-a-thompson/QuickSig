@@ -1,8 +1,8 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from quicksig.signatures.compute_log_signature import compute_log_signature
-from quicksig.signatures.get_signature_dim import (
+from quicksig.control_lifts.log_signature import compute_log_signature
+from quicksig.analytics.signature_sizes import (
     get_log_signature_dim,
     get_signature_dim,
 )

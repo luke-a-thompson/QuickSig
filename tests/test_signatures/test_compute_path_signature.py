@@ -1,8 +1,8 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from quicksig.signatures.compute_path_signature import compute_path_signature
-from quicksig.signatures.get_signature_dim import get_signature_dim
+from quicksig.control_lifts.path_signature import compute_path_signature
+from quicksig.analytics.signature_sizes import get_signature_dim
 import signax
 import math
 
