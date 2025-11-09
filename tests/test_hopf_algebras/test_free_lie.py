@@ -14,7 +14,6 @@ import pytest
 from quicksig.hopf_algebras.free_lie import (
     commutator,
     form_lyndon_brackets,
-    flatten_coeffs,
 )
 from quicksig.integrators.series import form_series
 
@@ -79,7 +78,11 @@ def test_apply_lie_coeffs() -> None:
     W = jax.random.normal(jax.random.PRNGKey(12), (num_words, n, n))
     lam = jax.random.normal(jax.random.PRNGKey(13), (num_words,))
 
-    result = form_series(W, lam)
+    # Wrap into per-level inputs expected by form_series
+    lam_by_len = [lam]
+    # words_by_len is only used for filtering empties; provide non-empty dummy words
+    words_by_len = [jnp.arange(num_words, dtype=jnp.int32).reshape(num_words, 1)]
+    result = form_series(W, lam_by_len, words_by_len)
 
     # Should compute sum_i lam[i] * W[i]
     # Note: tensordot and explicit sum may have slightly different floating point behavior
@@ -95,56 +98,11 @@ def test_apply_lie_coeffs_shape_error() -> None:
     lam = jax.random.normal(jax.random.PRNGKey(15), (3,))  # Wrong size
 
     with pytest.raises(ValueError, match="does not match"):
-        form_series(W, lam)
+        lam_by_len = [lam]
+        words_by_len = [jnp.arange(lam.shape[0], dtype=jnp.int32).reshape(lam.shape[0], 1)]
+        form_series(W, lam_by_len, words_by_len)
 
 
-def test_flatten_coeffs() -> None:
-    """Test coefficient flattening handles empty levels correctly."""
-    # Case 1: All levels non-empty
-    lam_by_len = [
-        jnp.array([1.0, 2.0]),
-        jnp.array([3.0, 4.0, 5.0]),
-    ]
-    words_by_len = [
-        jnp.array([[0], [1]], dtype=jnp.int32),
-        jnp.array([[0, 1], [1, 0], [0, 0]], dtype=jnp.int32),
-    ]
-
-    result = flatten_coeffs(lam_by_len, words_by_len)
-    expected = jnp.array([1.0, 2.0, 3.0, 4.0, 5.0])
-
-    np.testing.assert_allclose(result, expected, rtol=1e-10)
-
-    # Case 2: Some levels empty
-    lam_by_len = [
-        jnp.array([1.0, 2.0]),
-        jnp.array([]),
-        jnp.array([3.0]),
-    ]
-    words_by_len = [
-        jnp.array([[0], [1]], dtype=jnp.int32),
-        jnp.array([], dtype=jnp.int32).reshape(0, 2),
-        jnp.array([[0, 1, 0]], dtype=jnp.int32),
-    ]
-
-    result = flatten_coeffs(lam_by_len, words_by_len)
-    expected = jnp.array([1.0, 2.0, 3.0])
-
-    np.testing.assert_allclose(result, expected, rtol=1e-10)
-
-    # Case 3: All empty
-    lam_by_len = [
-        jnp.array([]),
-        jnp.array([]),
-    ]
-    words_by_len = [
-        jnp.array([], dtype=jnp.int32).reshape(0, 1),
-        jnp.array([], dtype=jnp.int32).reshape(0, 2),
-    ]
-
-    result = flatten_coeffs(lam_by_len, words_by_len)
-    assert result.shape == (0,)
-    assert result.dtype == jnp.float32
 
 
 # ============================================================================

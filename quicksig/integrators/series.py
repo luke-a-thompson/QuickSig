@@ -10,7 +10,7 @@ def form_series(
     """Form the Lie series matrix: C = sum_w lam_w * W[w]."""
     lams = [lam for lam, words in zip(lam_by_len, words_by_len) if words.size != 0]
     coefficients_flat: jax.Array = (
-        jnp.concatenate(lams, axis=0) if lams else jnp.zeros((0,), dtype=jnp.float32)
+        jnp.concatenate(lams, axis=0) if lams else jnp.zeros((0,))
     )
 
     if basis_terms.shape[0] != coefficients_flat.shape[0]:
