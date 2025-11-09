@@ -46,7 +46,7 @@ def _get_divisors(n: int) -> list[int]:
     return sorted(list(divs))
 
 
-def num_lyndon_words_of_length_k(num_symbols: int, length: int) -> int:
+def _num_lyndon_words_of_length_k(num_symbols: int, length: int) -> int:
     if length == 0:
         return 0
     if num_symbols == 1:
@@ -62,9 +62,9 @@ def num_lyndon_words_of_length_k(num_symbols: int, length: int) -> int:
 def get_log_signature_dim(depth: int, dim: int, flatten: bool = True) -> int | list[int]:
     """Compute the dimension of the log-signature space using Witt's formula."""
     if flatten:
-        return sum(num_lyndon_words_of_length_k(dim, k) for k in range(1, depth + 1))
+        return sum(_num_lyndon_words_of_length_k(dim, k) for k in range(1, depth + 1))
     else:
-        return [num_lyndon_words_of_length_k(dim, k) for k in range(1, depth + 1)]
+        return [_num_lyndon_words_of_length_k(dim, k) for k in range(1, depth + 1)]
 
 
 

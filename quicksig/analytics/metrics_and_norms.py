@@ -5,7 +5,8 @@ This module contains functions for computing metrics and norms of signature leve
 import math
 
 
-def get_holder_alpha(H: float, epsilon: float = 0.01) -> float:
+def hurst_to_holder_a(H: float, epsilon: float = 0.01) -> float:
+    """Convert Hölder exponent to Holder alpha."""
     if H <= 0:
         raise ValueError(f"H must be positive. Got H={H}.")
     if H > 1 / 2:
@@ -16,9 +17,7 @@ def get_holder_alpha(H: float, epsilon: float = 0.01) -> float:
     return alpha
 
 
-def get_minimal_signature_depth(H: float, epsilon: float = 0.01) -> int:
-    alpha = get_holder_alpha(H, epsilon)
+def hurst_to_minimal_signature_depth(H: float, epsilon: float = 0.01) -> int:
+    """Convert Hölder exponent to minimal signature depth."""
+    alpha = hurst_to_holder_a(H, epsilon)
     return math.floor(1 / alpha)
-
-
-

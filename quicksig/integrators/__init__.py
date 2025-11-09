@@ -1,3 +1,3 @@
-from .series import form_series
+from .series import form_lie_series
 
-__all__ = ["form_series"]
+__all__ = ["form_lie_series"]

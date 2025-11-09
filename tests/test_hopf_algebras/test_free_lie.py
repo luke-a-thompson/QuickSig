@@ -15,7 +15,7 @@ from quicksig.hopf_algebras.free_lie import (
     commutator,
     form_lyndon_brackets,
 )
-from quicksig.integrators.series import form_series
+from quicksig.integrators.series import form_lie_series
 
 
 def test_commutator_basic() -> None:
@@ -82,7 +82,7 @@ def test_apply_lie_coeffs() -> None:
     lam_by_len = [lam]
     # words_by_len is only used for filtering empties; provide non-empty dummy words
     words_by_len = [jnp.arange(num_words, dtype=jnp.int32).reshape(num_words, 1)]
-    result = form_series(W, lam_by_len, words_by_len)
+    result = form_lie_series(W, lam_by_len, words_by_len)
 
     # Should compute sum_i lam[i] * W[i]
     # Note: tensordot and explicit sum may have slightly different floating point behavior
@@ -100,7 +100,7 @@ def test_apply_lie_coeffs_shape_error() -> None:
     with pytest.raises(ValueError, match="does not match"):
         lam_by_len = [lam]
         words_by_len = [jnp.arange(lam.shape[0], dtype=jnp.int32).reshape(lam.shape[0], 1)]
-        form_series(W, lam_by_len, words_by_len)
+        form_lie_series(W, lam_by_len, words_by_len)
 
 
 # ============================================================================
@@ -113,7 +113,7 @@ def test_form_lyndon_brackets_single_letter() -> None:
     dim, n = 2, 3
     A = jax.random.normal(jax.random.PRNGKey(20), (dim, n, n))
 
-    result = form_lyndon_brackets(A, depth=1, dim=dim)
+    result = form_lyndon_brackets(A, depth=1)
 
     # For depth=1, dim=2, we get words [0] and [1]
     assert result.shape == (2, n, n)

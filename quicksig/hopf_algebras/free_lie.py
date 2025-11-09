@@ -117,14 +117,17 @@ def form_lyndon_brackets(
     Args:
         A: [dim, n, n] array where A[i] is the i-th Lie algebra basis element.
         depth: Maximum depth (word length) to compute brackets for.
-        dim: Dimension of the alphabet. If None, inferred from A.shape[0].
 
     Returns:
         W: [L, n, n] stacked Lyndon bracket matrices for all words in order.
            L = total number of Lyndon words up to depth.
     """
+    dim_infer = int(A.shape[0])
     if dim is None:
-        dim = A.shape[0]
+        dim = dim_infer
+    else:
+        if int(dim) != dim_infer:
+            raise ValueError(f"dim argument {dim} does not match A.shape[0] {dim_infer}")
 
     # Generate Lyndon words using duval_generator
     words_by_len = duval_generator(depth, dim)

@@ -34,82 +34,8 @@ def _build_children(parent: list[int]) -> list[list[int]]:
     return children
 
 
-def _render_tree_unicode(parent: list[int], show_ids: bool) -> list[str]:
-    """Render a single rooted tree to Unicode lines.
-
-    Args:
-        parent: Parent array for one tree (preorder indexing, root at 0).
-        show_ids: If ``True``, append node indices to bullets (e.g., ``•5``).
-
-    Returns:
-        A list of strings, each a line of the rendered tree using box-drawing
-        characters.
-    """
-    # Rooted at node 0; draw using box-drawing characters
-    children = _build_children(parent)
-
-    def collect_tail_chain(start: int) -> list[int]:
-        """Collect a maximal single-child chain that ends in a leaf.
-
-        Returns nodes [start, ..., end] if each intermediate node has exactly
-        one child and the final node has zero children. Otherwise returns
-        [start] (no compression).
-        """
-        chain: list[int] = [start]
-        current = start
-        while len(children[current]) == 1:
-            nxt = children[current][0]
-            chain.append(nxt)
-            current = nxt
-        # Compress only if this chain truly ends at a leaf
-        if len(children[current]) == 0 and len(chain) >= 2:
-            return chain
-        return [start]
-
-    def node_label(i: int) -> str:
-        return f"•{i}" if show_ids else "•"
-
-    lines: list[str] = []
-
-    def dfs(node: int, prefix: str, is_last: bool) -> None:
-        # Try tail-chain compression first
-        chain = collect_tail_chain(node)
-        if len(chain) >= 2:
-            connector = "──"
-            chain_text = connector.join(node_label(i) for i in chain)
-            if node == 0:
-                lines.append(chain_text)
-            else:
-                branch = "└─ " if is_last else "├─ "
-                lines.append(prefix + branch + chain_text)
-            # Tail chain ends in a leaf by construction; nothing further to render
-            return
-
-        # Regular single-node render
-        if node == 0:
-            lines.append(node_label(node))
-        else:
-            branch = "└─ " if is_last else "├─ "
-            lines.append(prefix + branch + node_label(node))
-
-        # Root's immediate children should not be indented; deeper levels follow the usual rules.
-        if node == 0:
-            next_prefix = ""
-        else:
-            next_prefix = prefix + ("   " if is_last else "│  ")
-        for idx, child in enumerate(children[node]):
-            dfs(child, next_prefix, idx == len(children[node]) - 1)
-
-    dfs(0, "", True)
-    return lines
-
-
 def _render_tree_centered(parent: list[int], show_ids: bool) -> list[str]:
-    """Render a single rooted tree with the root centered and diagonal branches.
-
-    This layout places the root horizontally centered above its subtrees and
-    uses diagonal connectors (⟍/⟋) to suggest branching to both sides.
-    """
+    """Render a single rooted tree with the root centered and diagonal branches."""
     children = _build_children(parent)
 
     def node_label(i: int) -> str:
@@ -225,14 +151,12 @@ def _render_tree_centered(parent: list[int], show_ids: bool) -> list[str]:
     return ["".join(row).rstrip() for row in canvas]
 
 
-def print_forest(batch: Forest, show_node_ids: bool = True, layout: str = "centered") -> str:
-    """Render a ``Forest`` as a fenced Markdown code block.
+def print_forest(batch: Forest, show_node_ids: bool = True) -> str:
+    """Render a ``Forest`` as a fenced Markdown code block using a centered layout.
 
     Args:
         batch: A ``Forest`` with ``parent`` of shape ``(num_trees, n)``.
         show_node_ids: If ``True``, include node indices next to bullets.
-        layout: Either ``"vertical"`` (default; indented box-drawing) or
-            ``"centered"`` (root centered with diagonal branches).
 
     Returns:
         A single string containing a fenced code block with one Unicode tree
@@ -242,10 +166,7 @@ def print_forest(batch: Forest, show_node_ids: bool = True, layout: str = "cente
     drawings: list[str] = []
     for row in range(parents.shape[0]):
         parent_row: list[int] = list(map(int, parents[row].tolist()))
-        if layout == "centered":
-            tree_lines = _render_tree_centered(parent_row, show_node_ids)
-        else:
-            tree_lines = _render_tree_unicode(parent_row, show_node_ids)
+        tree_lines = _render_tree_centered(parent_row, show_node_ids)
         drawings.append("\n".join(tree_lines))
     body = "\n\n".join(drawings)
     return f"```\n{body}\n```"

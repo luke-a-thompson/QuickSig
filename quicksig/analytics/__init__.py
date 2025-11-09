@@ -1,16 +1,15 @@
-from .signature_sizes import get_signature_dim, get_log_signature_dim, num_lyndon_words_of_length_k
-from .metrics_and_norms import get_holder_alpha, get_minimal_signature_depth
-from .wong_zakai import wz_friz_riedel_meshsize, wz_friz_riedel_stepcount
+from .signature_sizes import get_signature_dim, get_log_signature_dim
+from .metrics_and_norms import hurst_to_holder_a, hurst_to_minimal_signature_depth
+from .wong_zakai import (
+    hurst_to_wz_friz_riedel_meshsize,
+    hurst_to_wz_friz_riedel_stepcount,
+)
 
 __all__ = [
     "get_signature_dim",
     "get_log_signature_dim",
-    "num_lyndon_words_of_length_k",
-    "get_holder_alpha",
-    "get_minimal_signature_depth",
-    "wz_friz_riedel_meshsize",
-    "wz_friz_riedel_stepcount",
+    "hurst_to_holder_a",
+    "hurst_to_minimal_signature_depth",
+    "hurst_to_wz_friz_riedel_meshsize",
+    "hurst_to_wz_friz_riedel_stepcount",
 ]
-
-
-

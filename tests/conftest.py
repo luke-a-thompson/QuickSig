@@ -33,6 +33,15 @@ def test_gbm_shape_and_positive(num_timesteps: int, n_features: int) -> None:
     assert jnp.all(path > 0.0), "GBM should remain positive"
 
 
+@pytest.fixture
+def brownian_path_fixture(request: pytest.FixtureRequest) -> jax.Array:
+    """Generates a Brownian path W with W[0]=0, shape (num_steps+1, dim)."""
+    dim, num_steps = request.param
+    global _test_key
+    _test_key, subkey = jax.random.split(_test_key)
+    return generate_brownian_path(subkey, dim, num_steps)
+
+
 def generate_scalar_path(
     key: jax.Array,
     n_features: int,
@@ -92,3 +101,20 @@ def generate_linear_path(
     t = jnp.linspace(start, stop, num_timesteps).reshape(-1, 1)  # (steps, 1)
     vals = jnp.repeat(t, n_features, axis=1)  # (steps, n_features)  # (steps, n_features)
     return vals
+
+
+def generate_brownian_path(
+    key: jax.Array,
+    dim: int,
+    num_steps: int,
+    dt: float | None = None,
+    dtype: jnp.dtype = jnp.float32,
+) -> jax.Array:
+    """Generate a (num_steps+1, dim) Brownian path starting at zero."""
+    if dt is None:
+        dt = 1.0 / float(num_steps)
+    dt_arr = jnp.array(dt, dtype=dtype)
+    dW = jax.random.normal(key, (num_steps, dim), dtype=dtype) * jnp.sqrt(dt_arr)
+    W0 = jnp.zeros((1, dim), dtype=dtype)
+    W = jnp.vstack([W0, jnp.cumsum(dW, axis=0)])
+    return W
