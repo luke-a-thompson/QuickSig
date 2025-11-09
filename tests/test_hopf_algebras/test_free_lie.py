@@ -103,8 +103,6 @@ def test_apply_lie_coeffs_shape_error() -> None:
         form_series(W, lam_by_len, words_by_len)
 
 
-
-
 # ============================================================================
 # Tests for Lyndon bracket formation
 # ============================================================================
