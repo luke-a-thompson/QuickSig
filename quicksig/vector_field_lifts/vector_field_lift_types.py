@@ -1,5 +1,9 @@
 from typing import NewType
 import jax
 
-ButcherElementaryDifferential = NewType("ButcherElementaryDifferential", jax.Array)
-LieButcherElementaryDifferential = NewType("LieButcherElementaryDifferential", jax.Array)
+ButcherDifferentials = NewType("ButcherDifferentials", jax.Array)
+LieButcherDifferentials = NewType("LieButcherDifferentials", jax.Array)
+
+LyndonBrackets = NewType("LyndonBrackets", jax.Array)
+ButcherBrackets = NewType("ButcherBrackets", jax.Array)
+LieButcherBrackets = NewType("LieButcherBrackets", jax.Array)

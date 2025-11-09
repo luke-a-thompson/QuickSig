@@ -6,7 +6,7 @@ from jax.scipy.linalg import expm as jexpm
 from quicksig.integrators.log_ode import log_ode
 from quicksig.control_lifts.log_signature import duval_generator
 from quicksig.control_lifts.log_signature import compute_log_signature
-from quicksig.hopf_algebras.free_lie import form_lyndon_brackets
+from quicksig.vector_field_lifts.lie_lift import form_lyndon_brackets
 
 
 def _so3_generators() -> jax.Array:
@@ -36,7 +36,7 @@ def test_logode_zero_control_identity() -> None:
     y_next: jax.Array = log_ode(bracket_basis, lie_coefficients_by_len, words_by_len, y0)
 
     # y0 already unit norm; expect exact equality within tolerance
-    assert jnp.allclose(y_next, y0, atol=1e-7)
+    assert jnp.allclose(y_next, y0, rtol=1e-7)
 
 
 def test_logode_linear_1d_matches_matrix_exponential() -> None:
@@ -58,7 +58,7 @@ def test_logode_linear_1d_matches_matrix_exponential() -> None:
     expected: jax.Array = jexpm(delta * A0) @ y0
     expected = expected / jnp.linalg.norm(expected)
 
-    assert jnp.allclose(y_logode, expected, atol=1e-6)
+    assert jnp.allclose(y_logode, expected, rtol=1e-6)
 
 
 @pytest.mark.parametrize("brownian_path_fixture", [(1, 200)], indirect=True)
@@ -89,7 +89,7 @@ def test_logode_brownian_segmentation_invariance(brownian_path_fixture: jax.Arra
         log_sig_seg = compute_log_signature(seg, depth, "Lyndon words", mode="full")
         y_win = log_ode(bracket_basis, log_sig_seg.signature, words_by_len, y_win)
 
-    assert jnp.allclose(y_full, y_win, atol=1e-5)
+    assert jnp.allclose(y_full, y_win, rtol=1e-5)
 
 
 @pytest.mark.parametrize("brownian_path_fixture", [(3, 300)], indirect=True)
@@ -135,4 +135,4 @@ def test_logode_brownian_segmentation_invariance_commuting_high_depth(
         log_sig_seg = compute_log_signature(seg, depth, "Lyndon words", mode="full")
         y_win = log_ode(bracket_basis, log_sig_seg.signature, words_by_len, y_win)
 
-    assert jnp.allclose(y_full, y_win, atol=1e-5)
+    assert jnp.allclose(y_full, y_win, rtol=1e-5)

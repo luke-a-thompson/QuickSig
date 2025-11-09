@@ -3,6 +3,10 @@ import jax.numpy as jnp
 from typing import Callable, Optional
 
 from quicksig.hopf_algebras.hopf_algebra_types import MKWForest, BCKForest
+from quicksig.vector_field_lifts.vector_field_lift_types import (
+    ButcherDifferentials,
+    LieButcherDifferentials,
+)
 
 
 def _build_children_from_parent(parent_row: list[int]) -> list[list[int]]:
@@ -77,15 +81,16 @@ def build_tree_elementary_differentials_from_fx(
     return jnp.stack(results, axis=0)
 
 
-def form_bck_elementary_diff(
+def form_butcher_differentials(
     f: Callable[[jax.Array], jax.Array],
     x: jax.Array,
-    fx: jax.Array,
     forest: BCKForest,
-) -> jax.Array:
+) -> ButcherDifferentials:
     """Return elementary differentials F_tau(x) for all BCK trees tau in the forest.
     Coefficients are not applied; contract externally as needed.
     """
+
+    fx = f(x)
 
     def apply_dfk(child_vecs: list[jax.Array]) -> jax.Array:
         if len(child_vecs) == 0:
@@ -100,16 +105,16 @@ def form_bck_elementary_diff(
             h = h_next
         return h(x)
 
-    return build_tree_elementary_differentials_from_fx(fx, forest, apply_dfk)
+    elementary_differentials = build_tree_elementary_differentials_from_fx(fx, forest, apply_dfk)
+    return ButcherDifferentials(elementary_differentials)
 
 
-def form_mkw_elementary_diff(
+def form_lie_butcher_differentials(
     f: Callable[[jax.Array], jax.Array],
     x: jax.Array,
-    fx: jax.Array,
     forest: MKWForest,
     project_to_tangent: Callable[[jax.Array, jax.Array], jax.Array],
-) -> jax.Array:
+) -> LieButcherDifferentials:
     """Return elementary differentials F_tau(x) for all MKW trees tau (manifold case).
     Coefficients are not applied; arborify or contract externally as needed.
     """
@@ -117,7 +122,7 @@ def form_mkw_elementary_diff(
     def f_tan(y: jax.Array) -> jax.Array:
         return project_to_tangent(y, f(y))
 
-    fx_tan = project_to_tangent(x, fx)
+    fx_tan = project_to_tangent(x, f(x))
 
     def apply_dfk(child_vecs: list[jax.Array]) -> jax.Array:
         if len(child_vecs) == 0:
@@ -132,6 +137,7 @@ def form_mkw_elementary_diff(
             h = h_next
         return h(x)
 
-    return build_tree_elementary_differentials_from_fx(fx_tan, forest, apply_dfk)
-
-
+    elementary_differentials = build_tree_elementary_differentials_from_fx(
+        fx_tan, forest, apply_dfk
+    )
+    return LieButcherDifferentials(elementary_differentials)

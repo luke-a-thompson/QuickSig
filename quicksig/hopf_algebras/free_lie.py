@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-from quicksig.control_lifts.log_signature import duval_generator
 
 
 def commutator(a: jax.Array, b: jax.Array) -> jax.Array:
@@ -103,129 +102,71 @@ def _compute_lyndon_level_brackets(
     return jnp.stack(level_brackets)
 
 
-def form_lyndon_brackets(
-    A: jax.Array,
-    depth: int,
-    dim: int | None = None,
-) -> jax.Array:
-    """
-    Form Lyndon brackets (commutators) for all Lyndon words up to given depth.
-
-    Uses the standard factorization: for a Lyndon word w = uv where v is the
-    longest proper Lyndon suffix, [w] = [[u], [v]].
-
-    Args:
-        A: [dim, n, n] array where A[i] is the i-th Lie algebra basis element.
-        depth: Maximum depth (word length) to compute brackets for.
-
-    Returns:
-        W: [L, n, n] stacked Lyndon bracket matrices for all words in order.
-           L = total number of Lyndon words up to depth.
-    """
-    dim_infer = int(A.shape[0])
-    if dim is None:
-        dim = dim_infer
-    else:
-        if int(dim) != dim_infer:
-            raise ValueError(f"dim argument {dim} does not match A.shape[0] {dim_infer}")
-
-    # Generate Lyndon words using duval_generator
-    words_by_len = duval_generator(depth, dim)
-
-    if not words_by_len:
-        n = A.shape[-1]
-        return jnp.zeros((0, n, n), dtype=A.dtype)
-
-    n = A.shape[-1]
-    all_brackets: list[jax.Array] = []
-
-    for word_len_idx, words in enumerate(words_by_len):
-        if words.size == 0:
-            continue
-
-        word_length = word_len_idx + 1  # words at index k have length k+1
-
-        # Compute brackets for this level
-        if word_length == 1:
-            # Level 1: just A[i] for each word
-            level_brackets = A[words[:, 0]]  # [N1, n, n]
-        else:
-            # Level > 1: find splits and compute brackets
-            splits = _find_split_points_vectorized(words, words_by_len[:word_len_idx])
-            level_brackets = _compute_lyndon_level_brackets(
-                words, splits, words_by_len[:word_len_idx], all_brackets, A
-            )
-
-        all_brackets.append(level_brackets)
-
-    if not all_brackets:
-        return jnp.zeros((0, n, n), dtype=A.dtype)
-
-    return jnp.concatenate(all_brackets, axis=0)  # [L, n, n]
 
 
-def form_right_normed_brackets(
-    A: jax.Array,
-    words_by_len: list[jax.Array],
-) -> jax.Array:
-    """
-    Form right-normed brackets (commutators) for all words using matrix Lie algebra
-    basis elements. Uses caching to avoid recomputing shared suffixes. JIT-compatible.
 
-    Works for Lie algebras with matrix representations (matrix Lie groups like SO(n),
-    SE(3), or homogeneous spaces like Stiefel manifolds via their symmetry group's
-    Lie algebra representation).
+# def form_right_normed_brackets(
+#     A: jax.Array,
+#     words_by_len: list[jax.Array],
+# ) -> jax.Array:
+#     """
+#     Form right-normed brackets (commutators) for all words using matrix Lie algebra
+#     basis elements. Uses caching to avoid recomputing shared suffixes. JIT-compatible.
 
-    For ODEs dx/dt = f(x) on homogeneous spaces: A contains FIXED Lie algebra
-    generators (e.g., so(n) for O(n), se(3) for SE(3)). Vector field f(x) provides
-    position-dependent coefficients λ_i(x) such that f(x) = Σ_i λ_i(x) * A[i].
-    This function precomputes brackets [A[i], [A[j], ...]] which are then multiplied
-    by coefficients via apply_lie_coeffs().
+#     Works for Lie algebras with matrix representations (matrix Lie groups like SO(n),
+#     SE(3), or homogeneous spaces like Stiefel manifolds via their symmetry group's
+#     Lie algebra representation).
 
-    A:             [dim, n, n] array where A[i] is the i-th Lie algebra basis element.
-                   Fixed and independent of ODE state x.
-    words_by_len:  list; words_by_len[k] has shape [Nk, k+1] with ints in [0, dim)
+#     For ODEs dx/dt = f(x) on homogeneous spaces: A contains FIXED Lie algebra
+#     generators (e.g., so(n) for O(n), se(3) for SE(3)). Vector field f(x) provides
+#     position-dependent coefficients λ_i(x) such that f(x) = Σ_i λ_i(x) * A[i].
+#     This function precomputes brackets [A[i], [A[j], ...]] which are then multiplied
+#     by coefficients via apply_lie_coeffs().
 
-    Returns:
-        W: [L, n, n] stacked right-normed bracket matrices for all words in order.
-           L = sum_k Nk. If no words, returns shape [0, n, n].
-    """
-    if not words_by_len:
-        n = A.shape[-1]
-        return jnp.zeros((0, n, n), dtype=A.dtype)
+#     A:             [dim, n, n] array where A[i] is the i-th Lie algebra basis element.
+#                    Fixed and independent of ODE state x.
+#     words_by_len:  list; words_by_len[k] has shape [Nk, k+1] with ints in [0, dim)
 
-    n = A.shape[-1]
-    all_brackets: list[jax.Array] = []
+#     Returns:
+#         W: [L, n, n] stacked right-normed bracket matrices for all words in order.
+#            L = sum_k Nk. If no words, returns shape [0, n, n].
+#     """
+#     if not words_by_len:
+#         n = A.shape[-1]
+#         return jnp.zeros((0, n, n), dtype=A.dtype)
 
-    # Initialize with empty array for level 0 (will be replaced)
-    prev_brackets = jnp.zeros((0, n, n), dtype=A.dtype)
-    prev_words = jnp.zeros((0, 1), dtype=jnp.int32)  # Empty, shape matches length 1 words
+#     n = A.shape[-1]
+#     all_brackets: list[jax.Array] = []
 
-    for word_len_idx, words in enumerate(words_by_len):
-        if words.size == 0:
-            continue
+#     # Initialize with empty array for level 0 (will be replaced)
+#     prev_brackets = jnp.zeros((0, n, n), dtype=A.dtype)
+#     prev_words = jnp.zeros((0, 1), dtype=jnp.int32)  # Empty, shape matches length 1 words
 
-        word_length = word_len_idx + 1  # words at index k have length k+1
+#     for word_len_idx, words in enumerate(words_by_len):
+#         if words.size == 0:
+#             continue
 
-        # Compute brackets for this level
-        if word_length == 1:
-            # Level 1: just A[i] for each word
-            level_brackets = A[words[:, 0]]  # [N1, n, n]
-        else:
-            # Level > 1: reuse suffixes from previous level
-            suffix = words[:, 1:]  # [N, k] for words of length k+1
-            # Find matching brackets
-            matches = jnp.all(prev_words == suffix[:, None, :], axis=2)  # [N, M]
-            match_indices = jnp.argmax(matches, axis=1)  # [N]
-            suffix_brackets = prev_brackets[match_indices]  # [N, n, n]
-            level_brackets = jax.vmap(commutator)(A[words[:, 0]], suffix_brackets)
+#         word_length = word_len_idx + 1  # words at index k have length k+1
 
-        all_brackets.append(level_brackets)
-        # Update cache for next level
-        prev_brackets = level_brackets
-        prev_words = words
+#         # Compute brackets for this level
+#         if word_length == 1:
+#             # Level 1: just A[i] for each word
+#             level_brackets = A[words[:, 0]]  # [N1, n, n]
+#         else:
+#             # Level > 1: reuse suffixes from previous level
+#             suffix = words[:, 1:]  # [N, k] for words of length k+1
+#             # Find matching brackets
+#             matches = jnp.all(prev_words == suffix[:, None, :], axis=2)  # [N, M]
+#             match_indices = jnp.argmax(matches, axis=1)  # [N]
+#             suffix_brackets = prev_brackets[match_indices]  # [N, n, n]
+#             level_brackets = jax.vmap(commutator)(A[words[:, 0]], suffix_brackets)
 
-    if not all_brackets:
-        return jnp.zeros((0, n, n), dtype=A.dtype)
+#         all_brackets.append(level_brackets)
+#         # Update cache for next level
+#         prev_brackets = level_brackets
+#         prev_words = words
 
-    return jnp.concatenate(all_brackets, axis=0)  # [L, n, n]
+#     if not all_brackets:
+#         return jnp.zeros((0, n, n), dtype=A.dtype)
+
+#     return jnp.concatenate(all_brackets, axis=0)  # [L, n, n]
