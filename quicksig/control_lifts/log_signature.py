@@ -1,12 +1,10 @@
 from functools import partial
 import jax
-from quicksig.tensor_ops import tensor_log
 from quicksig.control_lifts.path_signature import compute_path_signature
-from quicksig.control_lifts.signature_types import Signature, LogSignature
-
 from typing import Literal, overload
 from collections import defaultdict
 import jax.numpy as jnp
+from quicksig.algebra.elements import GroupElement, LieElement
 
 
 @overload
@@ -15,7 +13,7 @@ def compute_log_signature(
     depth: int,
     log_signature_type: Literal["Tensor words", "Lyndon words"],
     mode: Literal["full"],
-) -> LogSignature: ...
+) -> LieElement: ...
 
 
 @overload
@@ -24,7 +22,7 @@ def compute_log_signature(
     depth: int,
     log_signature_type: Literal["Tensor words", "Lyndon words"],
     mode: Literal["stream", "incremental"],
-) -> list[LogSignature]: ...
+) -> list[LieElement]: ...
 
 
 @partial(jax.jit, static_argnames=["depth", "log_signature_type", "mode"])
@@ -33,32 +31,30 @@ def compute_log_signature(
     depth: int,
     log_signature_type: Literal["Tensor words", "Lyndon words"],
     mode: Literal["full", "stream", "incremental"],
-) -> LogSignature | list[LogSignature]:
+) -> LieElement | list[LieElement]:
     n_features = path.shape[-1]
     signature_result = compute_path_signature(path, depth, mode=mode)
 
-    def _get_log_signature(signature: Signature) -> LogSignature:
+    def _group_to_lie(group_el: GroupElement) -> LieElement:
+        lie_el = group_el.log()
         if log_signature_type == "Tensor words":
-            log_sig_tensors = tensor_log(signature.signature, n_features)
+            return lie_el
         elif log_signature_type == "Lyndon words":
             indices = duval_generator(depth, n_features)
-            log_signature_expanded = tensor_log(
-                signature.signature, n_features, flatten_output=False
-            )
-            log_sig_tensors = compress(log_signature_expanded, indices)
+            # reshape each level to expanded tensor shape, then compress
+            expanded = [
+                coeff.reshape((n_features,) * (i + 1)) for i, coeff in enumerate(lie_el.coeffs)
+            ]
+            compressed = compress(expanded, indices)
+            return LieElement(hopf=lie_el.hopf, coeffs=compressed, interval=lie_el.interval)
         else:
             raise ValueError(f"Invalid log signature type: {log_signature_type}")
 
-        return LogSignature(
-            signature=log_sig_tensors,
-            interval=signature.interval,
-            basis_name=log_signature_type,
-        )
-
     if isinstance(signature_result, list):
-        return [_get_log_signature(sig) for sig in signature_result]
+        return [_group_to_lie(sig) for sig in signature_result]
     else:
-        return _get_log_signature(signature_result)
+        return _group_to_lie(signature_result)
+
 
 
 @partial(jax.jit, static_argnames=["depth", "dim"])
