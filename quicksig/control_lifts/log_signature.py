@@ -4,7 +4,8 @@ from quicksig.control_lifts.path_signature import compute_path_signature
 from typing import Literal, overload
 from collections import defaultdict
 import jax.numpy as jnp
-from quicksig.algebra.elements import GroupElement, LieElement
+from quicksig.hopf_algebras.elements import GroupElement, LieElement
+from quicksig.control_lifts.signature_types import LogSignature
 
 
 @overload
@@ -13,7 +14,7 @@ def compute_log_signature(
     depth: int,
     log_signature_type: Literal["Tensor words", "Lyndon words"],
     mode: Literal["full"],
-) -> LieElement: ...
+) -> LogSignature: ...
 
 
 @overload
@@ -22,7 +23,7 @@ def compute_log_signature(
     depth: int,
     log_signature_type: Literal["Tensor words", "Lyndon words"],
     mode: Literal["stream", "incremental"],
-) -> list[LieElement]: ...
+) -> list[LogSignature]: ...
 
 
 @partial(jax.jit, static_argnames=["depth", "log_signature_type", "mode"])
@@ -31,7 +32,7 @@ def compute_log_signature(
     depth: int,
     log_signature_type: Literal["Tensor words", "Lyndon words"],
     mode: Literal["full", "stream", "incremental"],
-) -> LieElement | list[LieElement]:
+) -> LogSignature | list[LogSignature]:
     n_features = path.shape[-1]
     signature_result = compute_path_signature(path, depth, mode=mode)
 
@@ -46,15 +47,16 @@ def compute_log_signature(
                 coeff.reshape((n_features,) * (i + 1)) for i, coeff in enumerate(lie_el.coeffs)
             ]
             compressed = compress(expanded, indices)
-            return LieElement(hopf=lie_el.hopf, coeffs=compressed, interval=lie_el.interval)
+            return LogSignature(
+                LieElement(hopf=lie_el.hopf, coeffs=compressed, interval=lie_el.interval)
+            )
         else:
             raise ValueError(f"Invalid log signature type: {log_signature_type}")
 
     if isinstance(signature_result, list):
-        return [_group_to_lie(sig) for sig in signature_result]
+        return [LogSignature(_group_to_lie(sig)) for sig in signature_result]
     else:
-        return _group_to_lie(signature_result)
-
+        return LogSignature(_group_to_lie(signature_result))
 
 
 @partial(jax.jit, static_argnames=["depth", "dim"])
@@ -97,9 +99,14 @@ def index_select(input: jax.Array, indices: jax.Array) -> jax.Array:
     if n_components_in_indices > ndim_input_tensor:
         return jnp.zeros(indices.shape[0], dtype=input.dtype)
 
-    flattened = input.ravel("F")
+    # Coefficients elsewhere in the code are flattened in C order; match that here
+    flattened = input.ravel()
 
-    strides_array = jnp.array([dim_first_axis**i for i in range(n_components_in_indices)])
+    # In C-order flattening, the last axis varies fastest.
+    # For a tensor with shape (d, d, ..., d) and k indices (i0, ..., i_{k-1}),
+    # the linear index is: i0*d^{k-1} + i1*d^{k-2} + ... + i_{k-1}*d^{0}
+    powers = jnp.arange(n_components_in_indices - 1, -1, -1, dtype=jnp.int32)
+    strides_array = dim_first_axis**powers
 
     def _select(one_index_row: jax.Array) -> jax.Array:
         position = jnp.sum(one_index_row * strides_array)
@@ -114,6 +121,3 @@ def compress(expanded_terms: list[jax.Array], lyndon_indices: list[jax.Array]) -
         compressed_term = index_select(term, term_lyndon_indices)
         result_compressed.append(compressed_term)
     return result_compressed
-
-
-

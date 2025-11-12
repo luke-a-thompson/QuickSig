@@ -3,8 +3,9 @@ import jax.numpy as jnp
 from quicksig.tensor_ops import restricted_tensor_exp, seq_tensor_product
 from typing import Literal, overload
 from functools import partial
-from quicksig.algebra.elements import GroupElement
 from quicksig.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
+from quicksig.control_lifts.signature_types import Signature
+from quicksig.hopf_algebras.elements import GroupElement
 
 
 def _compute_incremental_levels(path_increments: jax.Array, depth: int) -> list[jax.Array]:
@@ -40,7 +41,7 @@ def compute_path_signature(
     depth: int,
     mode: Literal["full"],
     index_start: int = 0,
-) -> GroupElement: ...
+) -> Signature: ...
 
 
 @overload
@@ -49,16 +50,16 @@ def compute_path_signature(
     depth: int,
     mode: Literal["stream", "incremental"],
     index_start: int = 0,
-) -> list[GroupElement]: ...
+) -> list[Signature]: ...
 
 
-@partial(jax.jit, static_argnames=["depth", "mode"])
+@partial(jax.jit, static_argnames=["depth", "mode", "index_start"])
 def compute_path_signature(
     path: jax.Array,
     depth: int,
     mode: Literal["full", "stream", "incremental"],
     index_start: int = 0,
-) -> GroupElement | list[GroupElement]:
+) -> Signature | list[Signature]:
     r"""Computes the truncated path signature
     $$\operatorname{Sig}_{0,T}(X)=\bigl(S^{(1)}_{0,T},\,S^{(2)}_{0,T},\ldots,S^{(m)}_{0,T}\bigr),\qquad m=\text{depth}.$$
     The constant term $$S^{(0)}_{0,T}=1$$ is omitted.
@@ -72,8 +73,16 @@ def compute_path_signature(
     hopf = ShuffleHopfAlgebra(n_features)
     if seq_len <= 1:
         if mode == "full":
-            zero_terms = [jnp.zeros((n_features ** (i + 1),), dtype=path.dtype) for i in range(depth)]
-            return GroupElement(hopf=hopf, coeffs=zero_terms, interval=(index_start, index_start + seq_len))
+            zero_terms = [
+                jnp.zeros((n_features ** (i + 1),), dtype=path.dtype) for i in range(depth)
+            ]
+            return Signature(
+                GroupElement(
+                    hopf=hopf,
+                    coeffs=zero_terms,
+                    interval=(index_start, index_start + max(seq_len - 1, 0)),
+                )
+            )
         elif mode in ("stream", "incremental"):
             return []
         else:
@@ -84,29 +93,39 @@ def compute_path_signature(
     match mode:
         case "incremental":
             return [
-                GroupElement(
-                    hopf=hopf,
-                    coeffs=restricted_tensor_exp(path_increments[i, :], depth=depth),
-                    interval=(index_start + i, index_start + i + 1),
+                Signature(
+                    GroupElement(
+                        hopf=hopf,
+                        coeffs=[
+                            term.reshape(-1)
+                            for term in restricted_tensor_exp(path_increments[i, :], depth=depth)
+                        ],
+                        interval=(index_start + i, index_start + i + 1),
+                    )
                 )
                 for i in range(path_increments.shape[0])
             ]
         case "full":
             incremental_signatures = _compute_incremental_levels(path_increments, depth)
-            final_levels = [jnp.array(c[-1]) for c in incremental_signatures]
-            return GroupElement(hopf=hopf, coeffs=final_levels, interval=(index_start, index_start + path.shape[0]))
+            final_levels = [jnp.ravel(c[-1]) for c in incremental_signatures]
+            return Signature(
+                GroupElement(
+                    hopf=hopf,
+                    coeffs=final_levels,
+                    interval=(index_start, index_start + path.shape[0] - 1),
+                )
+            )
         case "stream":
             incremental_signatures = _compute_incremental_levels(path_increments, depth)
             return [
-                GroupElement(
-                    hopf=hopf,
-                    coeffs=[term[i, :] for term in incremental_signatures],
-                    interval=(index_start, index_start + i + 1),
+                Signature(
+                    GroupElement(
+                        hopf=hopf,
+                        coeffs=[jnp.ravel(term[i, :]) for term in incremental_signatures],
+                        interval=(index_start, index_start + i + 1),
+                    )
                 )
                 for i in range(path_increments.shape[0])
             ]
         case _:
             raise ValueError(f"Invalid mode: {mode}")
-
-
-
