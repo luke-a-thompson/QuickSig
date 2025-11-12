@@ -29,7 +29,7 @@ def test_log_signature_shape_full(
         log_signature_type=log_signature_type,
         mode="full",
     )
-    log_sig_array = jnp.concatenate([x.flatten() for x in log_sig.signature])
+    log_sig_array = log_sig.flatten()
 
     if log_signature_type == "Tensor words":
         expected_dim = get_signature_dim(depth, channels)
@@ -61,9 +61,7 @@ def test_log_signature_shape_stream(
     )
 
     assert len(log_sigs) == num_steps - 1
-    log_sig_array = jnp.stack(
-        [jnp.concatenate([x.flatten() for x in l.signature]) for l in log_sigs]
-    )
+    log_sig_array = jnp.stack([jnp.concatenate([x.flatten() for x in l.coeffs]) for l in log_sigs])
 
     if log_signature_type == "Tensor words":
         expected_dim = get_signature_dim(depth, channels)
@@ -95,9 +93,7 @@ def test_log_signature_shape_incremental(
     )
 
     assert len(log_sigs) == num_steps - 1
-    log_sig_array = jnp.stack(
-        [jnp.concatenate([x.flatten() for x in l.signature]) for l in log_sigs]
-    )
+    log_sig_array = jnp.stack([jnp.concatenate([x.flatten() for x in l.coeffs]) for l in log_sigs])
 
     if log_signature_type == "Tensor words":
         expected_dim = get_signature_dim(depth, channels)
@@ -121,7 +117,7 @@ def test_quicksig_signax_equivalence_full(scalar_path_fixture: jax.Array, depth:
     quicksig_log_sig = compute_log_signature(
         path, depth=depth, log_signature_type="Lyndon words", mode="full"
     )
-    quicksig_log_sig = jnp.concatenate([x.flatten() for x in quicksig_log_sig.signature])
+    quicksig_log_sig = jnp.concatenate([x.flatten() for x in quicksig_log_sig.coeffs])
 
     signax_log_sig = signax.logsignature(path, depth=depth, stream=False)
 
@@ -140,7 +136,7 @@ def test_quicksig_signax_equivalence_stream(scalar_path_fixture: jax.Array, dept
         path, depth=depth, log_signature_type="Lyndon words", mode="stream"
     )
     quicksig_log_sigs = jnp.stack(
-        [jnp.concatenate([x.flatten() for x in l.signature]) for l in quicksig_log_sigs]
+        [jnp.concatenate([x.flatten() for x in l.coeffs]) for l in quicksig_log_sigs]
     )
 
     signax_log_sigs = signax.logsignature(path, depth=depth, stream=True)

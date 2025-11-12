@@ -77,7 +77,7 @@ def test_logode_brownian_segmentation_invariance(brownian_path_fixture: jax.Arra
 
     # Whole interval
     log_sig_full = compute_log_signature(W, depth, "Lyndon words", mode="full")
-    y_full: jax.Array = log_ode(bracket_basis, log_sig_full.signature, words_by_len, y0)
+    y_full: jax.Array = log_ode(bracket_basis, log_sig_full.coeffs, words_by_len, y0)
 
     # Windowed
     window: int = 10
@@ -87,7 +87,7 @@ def test_logode_brownian_segmentation_invariance(brownian_path_fixture: jax.Arra
         e = min(s + window, N)
         seg: jax.Array = W[s : e + 1, :]
         log_sig_seg = compute_log_signature(seg, depth, "Lyndon words", mode="full")
-        y_win = log_ode(bracket_basis, log_sig_seg.signature, words_by_len, y_win)
+        y_win = log_ode(bracket_basis, log_sig_seg.coeffs, words_by_len, y_win)
 
     assert jnp.allclose(y_full, y_win, rtol=1e-5)
 
@@ -123,7 +123,7 @@ def test_logode_brownian_segmentation_invariance_commuting_high_depth(
 
     # Whole interval
     log_sig_full = compute_log_signature(W, depth, "Lyndon words", mode="full")
-    y_full: jax.Array = log_ode(bracket_basis, log_sig_full.signature, words_by_len, y0)
+    y_full: jax.Array = log_ode(bracket_basis, log_sig_full.coeffs, words_by_len, y0)
 
     # Windowed
     window: int = 25
@@ -133,6 +133,6 @@ def test_logode_brownian_segmentation_invariance_commuting_high_depth(
         e = min(s + window, N)
         seg: jax.Array = W[s : e + 1, :]
         log_sig_seg = compute_log_signature(seg, depth, "Lyndon words", mode="full")
-        y_win = log_ode(bracket_basis, log_sig_seg.signature, words_by_len, y_win)
+        y_win = log_ode(bracket_basis, log_sig_seg.coeffs, words_by_len, y_win)
 
     assert jnp.allclose(y_full, y_win, rtol=1e-5)
