@@ -71,9 +71,7 @@ def restricted_tensor_exp(x: jax.Array, depth: int) -> list[jax.Array]:
     return terms
 
 
-def cauchy_convolution(
-    x: list[jax.Array], y: list[jax.Array], depth: int, S_levels_shapes: list[jax.Array]
-) -> list[jax.Array]:
+def cauchy_convolution(x: list[jax.Array], y: list[jax.Array], depth: int) -> list[jax.Array]:
     r"""
     Computes the degree-m component of the graded tensor-concatenation product
     or Cauchy convolution product in the truncated free tensor algebra.
@@ -87,7 +85,12 @@ def cauchy_convolution(
     """
 
     # out[i] holds $$Z^{(i+1)}, Z = x \otimes y$$
-    out = [jnp.zeros_like(S_levels_shapes[k]) for k in range(depth)]
+    # Initialize from inferred unflattened shapes (no shape list needed)
+    if x[0].shape != y[0].shape:
+        raise ValueError(f"x and y must have the same shape, got {x[0].shape} and {y[0].shape}")
+    base = x[0]
+    n_features = base.shape[-1]
+    out = [jnp.zeros((n_features,) * (k + 1)) for k in range(depth)]
     # order-1 term is zero as there is no way to split $$1 = (p+1)+(q+1)$$ with $$p,q ≥ 0$$
     for i in range(1, depth):  # i is the index for out, e.g., out[i] is order i+1
         # we want $$Z^{(i+1)} = \sum_{(j+1)+(k+1)=i+1} X^{(j+1)}⊗Y^{(k+1)}$$
@@ -122,9 +125,7 @@ def tensor_log(
         result = [res + coef * p for res, p in zip(result, tensor_exp_lvl)]
         if n < len(sig_levels):  # $$S^{⊗(n+1)}$$
             # Math note: We must use the Cauchy product because the atomic tensor product is not defined for lists of signatures.
-            tensor_exp_lvl = cauchy_convolution(
-                tensor_exp_lvl, sig_levels, len(sig_levels), sig_levels
-            )
+            tensor_exp_lvl = cauchy_convolution(tensor_exp_lvl, sig_levels, len(sig_levels))
 
     # --- flatten ------------------------------------
     if flatten_output:
