@@ -6,7 +6,7 @@ def commutator(a: jax.Array, b: jax.Array) -> jax.Array:
     return a @ b - b @ a
 
 
-def _find_split_points_vectorized(
+def find_split_points_vectorized(
     words: jax.Array,
     prev_words_by_len: list[jax.Array],
 ) -> jax.Array:
@@ -61,7 +61,7 @@ def _find_split_points_vectorized(
     return jnp.array(splits, dtype=jnp.int32)
 
 
-def _compute_lyndon_level_brackets(
+def compute_lyndon_level_brackets(
     words: jax.Array,
     splits: jax.Array,
     prev_words_by_len: list[jax.Array],
@@ -100,9 +100,6 @@ def _compute_lyndon_level_brackets(
         level_brackets.append(bracket)
 
     return jnp.stack(level_brackets)
-
-
-
 
 
 # def form_right_normed_brackets(

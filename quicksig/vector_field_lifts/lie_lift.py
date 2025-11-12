@@ -3,8 +3,8 @@ import jax.numpy as jnp
 from quicksig.control_lifts.log_signature import duval_generator
 from quicksig.vector_field_lifts.vector_field_lift_types import LyndonBrackets
 from quicksig.hopf_algebras.free_lie import (
-    _find_split_points_vectorized,
-    _compute_lyndon_level_brackets,
+    find_split_points_vectorized,
+    compute_lyndon_level_brackets,
 )
 
 
@@ -50,8 +50,8 @@ def form_lyndon_brackets(
             level_brackets = A[words[:, 0]]  # [N1, n, n]
         else:
             # Level > 1: find splits and compute brackets
-            splits = _find_split_points_vectorized(words, words_by_len[:word_len_idx])
-            level_brackets = _compute_lyndon_level_brackets(
+            splits = find_split_points_vectorized(words, words_by_len[:word_len_idx])
+            level_brackets = compute_lyndon_level_brackets(
                 words, splits, words_by_len[:word_len_idx], all_brackets, A
             )
 
