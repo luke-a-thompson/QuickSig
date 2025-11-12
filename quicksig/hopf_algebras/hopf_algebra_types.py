@@ -69,9 +69,9 @@ class ShuffleHopfAlgebra(HopfAlgebra):
 
     @override
     def basis_size(self, level: int) -> int:
-        # level i corresponds to tensors of order (i+1)
-        dim = self.ambient_dimension
-        return int(dim ** (level + 1))
+        from quicksig.analytics import get_signature_dim
+
+        return get_signature_dim(level, self.ambient_dimension)
 
     def _unflatten_levels(self, levels: list[jax.Array]) -> list[jax.Array]:
         dim = self.ambient_dimension
@@ -186,12 +186,9 @@ class GLHopfAlgebra(HopfAlgebra):
     @override
     def basis_size(self, level: int) -> int:
         # level i corresponds to degree n = i+1
-        from quicksig.analytics.signature_sizes import a000081_upto
+        from quicksig.analytics import get_bck_signature_dim
 
-        n = level + 1
-        counts: list[int] = a000081_upto(n + 1)  # counts[n] = A000081(n+1)
-        per_level = counts[n] * int(self.ambient_dimension**n)
-        return per_level
+        return get_bck_signature_dim(level, self.ambient_dimension)
 
     @override
     def product(self, a_levels: list[jax.Array], b_levels: list[jax.Array]) -> list[jax.Array]:
@@ -227,12 +224,9 @@ class MKWHopfAlgebra(HopfAlgebra):
 
     @override
     def basis_size(self, level: int) -> int:
-        # level i corresponds to degree n = i+1
-        from quicksig.analytics.signature_sizes import _catalan
+        from quicksig.analytics import get_mkw_signature_dim
 
-        n = level + 1
-        per_level = _catalan(n) * int(self.ambient_dimension**n)
-        return per_level
+        return get_mkw_signature_dim(level, self.ambient_dimension)
 
     @override
     def product(self, a_levels: list[jax.Array], b_levels: list[jax.Array]) -> list[jax.Array]:

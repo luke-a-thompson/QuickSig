@@ -123,10 +123,6 @@ def generate_brownian_path(
     return W
 
 
-# ----------------------------
-# Shared helpers for test suites
-# ----------------------------
-
 def forest_from_parents(parents: list[list[int]]) -> Forest:
     """Create a Forest from a list of parent arrays (one per tree)."""
     arr = jnp.asarray(parents, dtype=jnp.int32)
@@ -159,15 +155,19 @@ def power_matrix(A: jax.Array, k: int) -> jax.Array:
 
 def linear_field(A: jax.Array) -> Callable[[jax.Array], jax.Array]:
     """Return f(x) = A @ x."""
+
     def f(x: jax.Array) -> jax.Array:
         return A @ x
+
     return f
 
 
 def elementwise_square_field() -> Callable[[jax.Array], jax.Array]:
     """Return f(x) = x^2 elementwise."""
+
     def f(x: jax.Array) -> jax.Array:
         return jnp.square(x)
+
     return f
 
 
