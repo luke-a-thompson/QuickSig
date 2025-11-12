@@ -33,7 +33,7 @@ uv sync --extra dev
 For development:
 ```bash
 pip install quicksig[all]
-uv sync --extra all
+uv sync --all-extras
 ```
 
 ## Quick Start

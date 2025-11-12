@@ -59,7 +59,7 @@ def compute_log_signature(
         return LogSignature(_group_to_lie(signature_result))
 
 
-@partial(jax.jit, static_argnames=["depth", "dim"])
+# @partial(jax.jit, static_argnames=["depth", "dim"])
 def duval_generator(depth: int, dim: int) -> list[jax.Array]:
     """Generates lists of words (integer sequences) for each level up to a specified depth.
     These words typically correspond to the Lyndon word basis.

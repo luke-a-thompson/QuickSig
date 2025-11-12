@@ -4,7 +4,7 @@ from functools import partial
 import jax
 
 
-@partial(jax.jit, static_argnames=("depth", "dim"))
+# @partial(jax.jit, static_argnames=("depth", "dim"))
 def get_signature_dim(depth: int, dim: int) -> int:
     """Compute the total dimension of the signature space up to depth."""
     return sum(dim**k for k in range(1, depth + 1))
@@ -76,7 +76,7 @@ def _catalan(n: int) -> int:
     return c // (n + 1)
 
 
-def a000081_upto(max_n: int) -> list[int]:
+def _a000081_upto(max_n: int) -> list[int]:
     """Compute A000081(1..max_n): number of unlabeled rooted trees with n nodes.
 
     Uses the standard recurrence:
@@ -137,7 +137,7 @@ def get_bck_signature_dim(depth: int, dim: int) -> int:
     # Use the standard recurrence for A000081 rather than explicit enumeration.
     if depth <= 0:
         return 0
-    counts: list[int] = a000081_upto(depth + 1)  # counts[k] = A000081(k+1)
+    counts: list[int] = _a000081_upto(depth + 1)  # counts[k] = A000081(k+1)
     levels: list[int] = []
     for k in range(1, depth + 1):
         levels.append(counts[k] * (dim**k))
