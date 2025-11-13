@@ -1,5 +1,6 @@
-from typing import NamedTuple, NewType, final, override
-from dataclasses import dataclass
+from __future__ import annotations
+from typing import NamedTuple, NewType, final, override, Optional
+from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import jax
 import jax.numpy as jnp
@@ -69,9 +70,8 @@ class ShuffleHopfAlgebra(HopfAlgebra):
 
     @override
     def basis_size(self, level: int) -> int:
-        from quicksig.analytics import get_signature_dim
-
-        return get_signature_dim(level, self.ambient_dimension)
+        # Per-level (degree = level+1) tensor dimension is dim^(level+1)
+        return int(self.ambient_dimension ** (level + 1))
 
     def _unflatten_levels(self, levels: list[jax.Array]) -> list[jax.Array]:
         dim = self.ambient_dimension
@@ -182,17 +182,75 @@ class GLHopfAlgebra(HopfAlgebra):
     """
 
     ambient_dimension: int
+    # Optional precomputed structures
+    degree2_chain_indices: Optional[jax.Array] = None  # (d, d) mapping for degree-2 chains
+    # Degree/basis metadata
+    max_degree: int = 0
+    shape_count_by_degree: list[int] = field(default_factory=list)
 
     @override
     def basis_size(self, level: int) -> int:
-        # level i corresponds to degree n = i+1
-        from quicksig.analytics import get_bck_signature_dim
+        # Per-level dimension: number of unordered rooted forests with n nodes times d^n,
+        # where n = level + 1 and #forests(n) = A000081(n+1).
+        n = level + 1
+        from quicksig.analytics.signature_sizes import _a000081_upto
 
-        return get_bck_signature_dim(level, self.ambient_dimension)
+        counts = _a000081_upto(n + 1)  # counts[k] = A000081(k+1) for k=0..n
+        num_forests_n = counts[n]  # A000081(n+1)
+        return num_forests_n * (self.ambient_dimension**n)
+
+    @classmethod
+    def build(
+        cls,
+        d: int,
+        forests: list[BCKForest],
+    ) -> "GLHopfAlgebra":
+        # Build degree-2 map if applicable (no dependency on TreeIndex to avoid cycles)
+        deg2_map: Optional[jax.Array] = None
+        if len(forests) >= 2:
+            parents = forests[1].parent  # degree 2 is index 1
+            target = jnp.asarray([-1, 0], dtype=jnp.int32)
+            eq = jnp.all(parents == target[None, :], axis=1)
+            matches = jnp.where(eq, size=1, fill_value=-1)[0]
+            shape_id = int(matches[0].item())
+            if shape_id >= 0:
+                rows = []
+                for i in range(d):
+                    row = []
+                    for j in range(d):
+                        row.append(shape_id * (d**2) + i * d + j)
+                    rows.append(row)
+                deg2_map = jnp.asarray(rows, dtype=jnp.int32)
+        shape_counts = [int(f.parent.shape[0]) for f in forests]
+        return cls(
+            ambient_dimension=d,
+            degree2_chain_indices=deg2_map,
+            max_degree=len(forests),
+            shape_count_by_degree=shape_counts,
+        )
 
     @override
     def product(self, a_levels: list[jax.Array], b_levels: list[jax.Array]) -> list[jax.Array]:
-        raise NotImplementedError("GLHopfAlgebra.product is not implemented yet.")
+        if len(a_levels) != len(b_levels):
+            raise ValueError("Truncations must match for product.")
+        m = len(a_levels)
+        out = [ai + bi for ai, bi in zip(a_levels, b_levels)]
+        if m >= 2:
+            if self.degree2_chain_indices is None:
+                raise ValueError("GLHopfAlgebra not built with degree-2 tables.")
+            d = self.ambient_dimension
+            a1 = a_levels[0].reshape(-1)
+            b1 = b_levels[0].reshape(-1)
+            if a1.shape[0] != d or b1.shape[0] != d:
+                raise NotImplementedError("Degree-1 basis must be single-node with d colours.")
+            outer = jnp.outer(a1, b1)  # (d, d)
+            idx = self.degree2_chain_indices
+            updates = jnp.zeros_like(out[1])
+            updates = updates.at[idx].add(outer)
+            out[1] = out[1] + updates
+        if m >= 3:
+            raise NotImplementedError("GLHopfAlgebra product for degree>=3 not implemented yet.")
+        return out
 
     @override
     def coproduct(self, levels: list[jax.Array]) -> list[list[jax.Array]]:
@@ -200,11 +258,36 @@ class GLHopfAlgebra(HopfAlgebra):
 
     @override
     def exp(self, x: list[jax.Array]) -> list[jax.Array]:
-        raise NotImplementedError("GLHopfAlgebra.exp is not implemented yet.")
+        if len(x) == 0:
+            return []
+        depth = len(x)
+        acc = [jnp.zeros_like(t) for t in x]
+        current = [t for t in x]
+        factorial = 1.0
+        for k in range(1, depth + 1):
+            factorial *= float(k)
+            acc = [a + (1.0 / factorial) * c for a, c in zip(acc, current)]
+            if k < depth:
+                ab = self.product(current, x)
+                # pure product: remove linear parts
+                current = [u - v - w for u, v, w in zip(ab, current, x)]
+        return acc
 
     @override
     def log(self, g: list[jax.Array]) -> list[jax.Array]:
-        raise NotImplementedError("GLHopfAlgebra.log is not implemented yet.")
+        if len(g) == 0:
+            return []
+        depth = len(g)
+        acc = [jnp.zeros_like(t) for t in g]
+        current = [t for t in g]
+        coeff = 1.0
+        acc = [a + coeff * c for a, c in zip(acc, current)]
+        for k in range(2, depth + 1):
+            ab = self.product(current, g)
+            current = [u - v - w for u, v, w in zip(ab, current, g)]
+            coeff = ((-1.0) ** (k + 1)) / float(k)
+            acc = [a + coeff * c for a, c in zip(acc, current)]
+        return acc
 
     @override
     def __str__(self) -> str:
@@ -221,16 +304,71 @@ class MKWHopfAlgebra(HopfAlgebra):
     """
 
     ambient_dimension: int
+    degree2_chain_indices: Optional[jax.Array] = None  # (d, d) mapping for degree-2 chains
+    # Degree/basis metadata
+    max_degree: int = 0
+    shape_count_by_degree: list[int] = field(default_factory=list)
 
     @override
     def basis_size(self, level: int) -> int:
-        from quicksig.analytics import get_mkw_signature_dim
+        # Per-level dimension: number of plane rooted forests with n nodes times d^n,
+        # where n = level + 1 and #plane_forests(n) = Catalan(n).
+        n = level + 1
+        from quicksig.analytics.signature_sizes import _catalan
+        # Number of plane rooted trees with n nodes is Catalan(n-1)
+        return _catalan(n - 1) * (self.ambient_dimension**n)
 
-        return get_mkw_signature_dim(level, self.ambient_dimension)
+    @classmethod
+    def build(
+        cls,
+        d: int,
+        forests: list[MKWForest],
+    ) -> "MKWHopfAlgebra":
+        deg2_map: Optional[jax.Array] = None
+        if len(forests) >= 2:
+            parents = forests[1].parent  # degree 2 is index 1
+            target = jnp.asarray([-1, 0], dtype=jnp.int32)
+            eq = jnp.all(parents == target[None, :], axis=1)
+            matches = jnp.where(eq, size=1, fill_value=-1)[0]
+            shape_id = int(matches[0].item())
+            if shape_id >= 0:
+                rows = []
+                for i in range(d):
+                    row = []
+                    for j in range(d):
+                        row.append(shape_id * (d**2) + i * d + j)
+                    rows.append(row)
+                deg2_map = jnp.asarray(rows, dtype=jnp.int32)
+        shape_counts = [int(f.parent.shape[0]) for f in forests]
+        return cls(
+            ambient_dimension=d,
+            degree2_chain_indices=deg2_map,
+            max_degree=len(forests),
+            shape_count_by_degree=shape_counts,
+        )
 
     @override
     def product(self, a_levels: list[jax.Array], b_levels: list[jax.Array]) -> list[jax.Array]:
-        raise NotImplementedError("MKWHopfAlgebra.product is not implemented yet.")
+        if len(a_levels) != len(b_levels):
+            raise ValueError("Truncations must match for product.")
+        m = len(a_levels)
+        out = [ai + bi for ai, bi in zip(a_levels, b_levels)]
+        if m >= 2:
+            if self.degree2_chain_indices is None:
+                raise ValueError("MKWHopfAlgebra not built with degree-2 tables.")
+            d = self.ambient_dimension
+            a1 = a_levels[0].reshape(-1)
+            b1 = b_levels[0].reshape(-1)
+            if a1.shape[0] != d or b1.shape[0] != d:
+                raise NotImplementedError("Degree-1 basis must be single-node with d colours.")
+            outer = jnp.outer(a1, b1)  # (d, d)
+            idx = self.degree2_chain_indices
+            updates = jnp.zeros_like(out[1])
+            updates = updates.at[idx].add(outer)
+            out[1] = out[1] + updates
+        if m >= 3:
+            raise NotImplementedError("MKWHopfAlgebra product for degree>=3 not implemented yet.")
+        return out
 
     @override
     def coproduct(self, levels: list[jax.Array]) -> list[list[jax.Array]]:
@@ -238,11 +376,35 @@ class MKWHopfAlgebra(HopfAlgebra):
 
     @override
     def exp(self, x: list[jax.Array]) -> list[jax.Array]:
-        raise NotImplementedError("MKWHopfAlgebra.exp is not implemented yet.")
+        if len(x) == 0:
+            return []
+        depth = len(x)
+        acc = [jnp.zeros_like(t) for t in x]
+        current = [t for t in x]
+        factorial = 1.0
+        for k in range(1, depth + 1):
+            factorial *= float(k)
+            acc = [a + (1.0 / factorial) * c for a, c in zip(acc, current)]
+            if k < depth:
+                ab = self.product(current, x)
+                current = [u - v - w for u, v, w in zip(ab, current, x)]
+        return acc
 
     @override
     def log(self, g: list[jax.Array]) -> list[jax.Array]:
-        raise NotImplementedError("MKWHopfAlgebra.log is not implemented yet.")
+        if len(g) == 0:
+            return []
+        depth = len(g)
+        acc = [jnp.zeros_like(t) for t in g]
+        current = [t for t in g]
+        coeff = 1.0
+        acc = [a + coeff * c for a, c in zip(acc, current)]
+        for k in range(2, depth + 1):
+            ab = self.product(current, g)
+            current = [u - v - w for u, v, w in zip(ab, current, g)]
+            coeff = ((-1.0) ** (k + 1)) / float(k)
+            acc = [a + coeff * c for a, c in zip(acc, current)]
+        return acc
 
     @override
     def __str__(self) -> str:
