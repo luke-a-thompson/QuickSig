@@ -80,8 +80,7 @@ def test_apply_lie_coeffs() -> None:
     # Wrap into per-level inputs expected by form_series
     lam_by_len = [lam]
     # words_by_len is only used for filtering empties; provide non-empty dummy words
-    words_by_len = [jnp.arange(num_words, dtype=jnp.int32).reshape(num_words, 1)]
-    result = form_lie_series(W, lam_by_len, words_by_len)
+    result = form_lie_series(W, lam_by_len)
 
     # Should compute sum_i lam[i] * W[i]
     # Note: tensordot and explicit sum may have slightly different floating point behavior
@@ -98,5 +97,4 @@ def test_apply_lie_coeffs_shape_error() -> None:
 
     with pytest.raises(ValueError, match="does not match"):
         lam_by_len = [lam]
-        words_by_len = [jnp.arange(lam.shape[0], dtype=jnp.int32).reshape(lam.shape[0], 1)]
-        form_lie_series(W, lam_by_len, words_by_len)
+        form_lie_series(W, lam_by_len)
