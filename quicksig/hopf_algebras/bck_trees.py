@@ -65,8 +65,8 @@ def _bh_successor(levels: list[int]) -> list[int]:
     return S
 
 
-def enumerate_bck_trees(n: int) -> BCKForest:
-    """Enumerate rooted unordered trees with ``n`` nodes.
+def _enumerate_bck_trees_n(n: int) -> BCKForest:
+    """Enumerate rooted unordered trees with exactly ``n`` nodes.
 
     Uses the Beyer-Hedetniemi successor to iterate canonical level sequences.
 
@@ -99,3 +99,13 @@ def enumerate_bck_trees(n: int) -> BCKForest:
 
     parents = jnp.stack(parents_list, axis=0).astype(jnp.int32)
     return BCKForest(Forest(parent=parents))
+
+
+def enumerate_bck_trees(max_n: int) -> list[BCKForest]:
+    """Enumerate unordered rooted trees for all degrees 1..``max_n``.
+
+    Returns a list where entry at index n-1 is the ``BCKForest`` for degree n.
+    """
+    if max_n <= 0:
+        raise ValueError("max_n must be >= 1")
+    return [_enumerate_bck_trees_n(n) for n in range(1, max_n + 1)]
