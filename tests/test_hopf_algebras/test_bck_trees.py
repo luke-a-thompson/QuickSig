@@ -2,8 +2,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from quicksig.hopf_algebras.bck_trees import enumerate_bck_trees
-from quicksig.hopf_algebras.mkw_trees import enumerate_mkw_trees
+from stochastax.hopf_algebras.bck_trees import enumerate_bck_trees
+from stochastax.hopf_algebras.mkw_trees import enumerate_mkw_trees
 
 
 # OEIS A000081: number of rooted unlabeled trees with n nodes

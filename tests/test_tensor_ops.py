@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from quicksig.tensor_ops import (
+from stochastax.tensor_ops import (
     restricted_tensor_exp,
     tensor_log,
     tensor_product,

@@ -1,5 +1,5 @@
 from typing import NewType
-from quicksig.hopf_algebras.elements import GroupElement, LieElement
+from stochastax.hopf_algebras.elements import GroupElement, LieElement
 
 # Backward-compatibility type names, now as newtypes over the new element classes.
 # Runtime representation remains GroupElement/LieElement.

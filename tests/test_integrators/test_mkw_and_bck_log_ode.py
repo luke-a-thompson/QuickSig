@@ -3,20 +3,20 @@ import jax.numpy as jnp
 import pytest
 from jax.scipy.linalg import expm as jexpm
 
-from quicksig.controls.drivers import bm_driver
-from quicksig.controls.augmentations import non_overlapping_windower
-from quicksig.control_lifts.log_signature import compute_log_signature, duval_generator
-from quicksig.control_lifts.branched_signature_ito import (
+from stochastax.controls.drivers import bm_driver
+from stochastax.controls.augmentations import non_overlapping_windower
+from stochastax.control_lifts.log_signature import compute_log_signature, duval_generator
+from stochastax.control_lifts.branched_signature_ito import (
     compute_planar_branched_signature,
     compute_nonplanar_branched_signature,
 )
-from quicksig.integrators.log_ode import log_ode
-from quicksig.vector_field_lifts.lie_lift import form_lyndon_brackets
-from quicksig.vector_field_lifts.mkw_lift import compute_mkw_brackets_by_degree
-from quicksig.vector_field_lifts.bck_lift import compute_bck_brackets_by_degree
-from quicksig.hopf_algebras import enumerate_mkw_trees, enumerate_bck_trees
-from quicksig.hopf_algebras.hopf_algebra_types import MKWHopfAlgebra, GLHopfAlgebra
-from quicksig.hopf_algebras.elements import GroupElement
+from stochastax.integrators.log_ode import log_ode
+from stochastax.vector_field_lifts.lie_lift import form_lyndon_brackets
+from stochastax.vector_field_lifts.mkw_lift import compute_mkw_brackets_by_degree
+from stochastax.vector_field_lifts.bck_lift import compute_bck_brackets_by_degree
+from stochastax.hopf_algebras import enumerate_mkw_trees, enumerate_bck_trees
+from stochastax.hopf_algebras.hopf_algebra_types import MKWHopfAlgebra, GLHopfAlgebra
+from stochastax.hopf_algebras.elements import GroupElement
 from typing import cast
 
 

@@ -1,11 +1,11 @@
 import jax
 import jax.numpy as jnp
-from quicksig.tensor_ops import restricted_tensor_exp, seq_tensor_product
+from stochastax.tensor_ops import restricted_tensor_exp, seq_tensor_product
 from typing import Literal, overload
 from functools import partial
-from quicksig.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
-from quicksig.control_lifts.signature_types import Signature
-from quicksig.hopf_algebras.elements import GroupElement
+from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
+from stochastax.control_lifts.signature_types import Signature
+from stochastax.hopf_algebras.elements import GroupElement
 
 
 def _compute_incremental_levels(path_increments: jax.Array, depth: int) -> list[jax.Array]:

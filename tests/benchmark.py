@@ -133,7 +133,7 @@ def benchmark_signature(
             path = generate_scalar_path(KEY, num_timesteps, channels)
 
             # QuickSig benchmark
-            from quicksig.control_lifts import compute_path_signature
+            from stochastax.control_lifts import compute_path_signature
 
             compiled_quicksig = jax.jit(
                 lambda x: compute_path_signature(x, depth=depth, mode="full").flatten()

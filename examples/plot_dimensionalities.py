@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from quicksig.analytics.signature_sizes import (
+from stochastax.analytics.signature_sizes import (
     get_signature_dim,
     get_log_signature_dim,
 )

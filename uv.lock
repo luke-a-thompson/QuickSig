@@ -1118,62 +1118,6 @@ wheels = [
 ]
 
 [[package]]
-name = "quicksig"
-version = "0.3.0"
-source = { editable = "." }
-dependencies = [
-    { name = "jax" },
-]
-
-[package.optional-dependencies]
-all = [
-    { name = "diffrax" },
-    { name = "ipykernel" },
-    { name = "jax", extra = ["cuda12"] },
-    { name = "matplotlib" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-timeout" },
-    { name = "ruff" },
-    { name = "signax" },
-    { name = "tqdm" },
-]
-cuda = [
-    { name = "jax", extra = ["cuda12"] },
-]
-dev = [
-    { name = "diffrax" },
-    { name = "ipykernel" },
-    { name = "matplotlib" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-timeout" },
-    { name = "ruff" },
-    { name = "signax" },
-    { name = "tqdm" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "diffrax", marker = "extra == 'dev'", specifier = ">=0.7.0" },
-    { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.29.5" },
-    { name = "jax", specifier = ">=0.7.0" },
-    { name = "jax", extras = ["cuda12"], marker = "extra == 'cuda'", specifier = ">=0.6.0" },
-    { name = "matplotlib", marker = "extra == 'dev'", specifier = ">=3.10.1" },
-    { name = "mypy", marker = "extra == 'dev'" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.5" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.1.1" },
-    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.3.1" },
-    { name = "quicksig", extras = ["cuda", "dev"], marker = "extra == 'all'" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.14.3" },
-    { name = "signax", marker = "extra == 'dev'", specifier = ">=0.2.1" },
-    { name = "tqdm", marker = "extra == 'dev'", specifier = ">=4.67.1" },
-]
-provides-extras = ["cuda", "dev", "all"]
-
-[[package]]
 name = "ruff"
 version = "0.14.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1274,6 +1218,48 @@ sdist = { url = "https://files.pythonhosted.org/packages/28/e3/55dcc2cfbc3ca9c29
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f1/7b/ce1eafaf1a76852e2ec9b22edecf1daa58175c090266e9f6c64afcd81d91/stack_data-0.6.3-py3-none-any.whl", hash = "sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695", size = 24521, upload-time = "2023-09-30T13:58:03.53Z" },
 ]
+
+[[package]]
+name = "stochastax"
+version = "0.3.0"
+source = { editable = "." }
+dependencies = [
+    { name = "jax" },
+]
+
+[package.optional-dependencies]
+cuda = [
+    { name = "jax", extra = ["cuda12"] },
+]
+dev = [
+    { name = "diffrax" },
+    { name = "ipykernel" },
+    { name = "matplotlib" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-timeout" },
+    { name = "ruff" },
+    { name = "signax" },
+    { name = "tqdm" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "diffrax", marker = "extra == 'dev'", specifier = ">=0.7.0" },
+    { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.29.5" },
+    { name = "jax", specifier = ">=0.7.0" },
+    { name = "jax", extras = ["cuda12"], marker = "extra == 'cuda'", specifier = ">=0.6.0" },
+    { name = "matplotlib", marker = "extra == 'dev'", specifier = ">=3.10.1" },
+    { name = "mypy", marker = "extra == 'dev'" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.5" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.1.1" },
+    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.3.1" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.14.3" },
+    { name = "signax", marker = "extra == 'dev'", specifier = ">=0.2.1" },
+    { name = "tqdm", marker = "extra == 'dev'", specifier = ">=4.67.1" },
+]
+provides-extras = ["cuda", "dev"]
 
 [[package]]
 name = "tornado"

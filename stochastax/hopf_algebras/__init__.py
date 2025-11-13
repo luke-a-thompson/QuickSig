@@ -6,8 +6,8 @@ Exports
 - ``print_forest``: Render a forest of trees as Unicode Markdown.
 """
 
-from quicksig.hopf_algebras.bck_trees import enumerate_bck_trees
-from quicksig.hopf_algebras.mkw_trees import enumerate_mkw_trees
+from stochastax.hopf_algebras.bck_trees import enumerate_bck_trees
+from stochastax.hopf_algebras.mkw_trees import enumerate_mkw_trees
 
 __all__ = [
     "enumerate_bck_trees",

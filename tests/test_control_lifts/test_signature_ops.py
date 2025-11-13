@@ -1,8 +1,8 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from quicksig.control_lifts.path_signature import compute_path_signature
-from quicksig.control_lifts.signature_types import Signature, LogSignature
+from stochastax.control_lifts.path_signature import compute_path_signature
+from stochastax.control_lifts.signature_types import Signature, LogSignature
 
 
 @pytest.mark.parametrize("scalar_path_fixture", [(1, 20), (2, 30)], indirect=True)

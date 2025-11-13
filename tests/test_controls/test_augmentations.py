@@ -2,7 +2,7 @@ import pytest
 import functools
 import jax
 import jax.numpy as jnp
-from quicksig.controls.augmentations import (
+from stochastax.controls.augmentations import (
     augment_path,
     basepoint_augmentation,
     time_augmentation,
@@ -10,7 +10,7 @@ from quicksig.controls.augmentations import (
     non_overlapping_windower,
     dyadic_windower,
 )
-from quicksig.controls.paths_types import pathify, Path
+from stochastax.controls.paths_types import pathify, Path
 
 _test_key = jax.random.PRNGKey(42)
 

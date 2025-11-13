@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
-from quicksig.integrators.integrator_types import ButcherSeries, LieSeries, LieButcherSeries
-from quicksig.vector_field_lifts.vector_field_lift_types import (
+from stochastax.integrators.integrator_types import ButcherSeries, LieSeries, LieButcherSeries
+from stochastax.vector_field_lifts.vector_field_lift_types import (
     ButcherDifferentials,
     LieButcherDifferentials,
 )

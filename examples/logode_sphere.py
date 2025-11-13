@@ -4,12 +4,12 @@ import matplotlib.pyplot as plt
 from typing import Any
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
-from quicksig.controls.drivers import bm_driver
-from quicksig.controls.augmentations import non_overlapping_windower
-from quicksig.controls.paths_types import Path
-from quicksig.control_lifts.log_signature import compute_log_signature, duval_generator
-from quicksig.vector_field_lifts.lie_lift import form_lyndon_brackets
-from quicksig.integrators.log_ode import log_ode
+from stochastax.controls.drivers import bm_driver
+from stochastax.controls.augmentations import non_overlapping_windower
+from stochastax.controls.paths_types import Path
+from stochastax.control_lifts.log_signature import compute_log_signature, duval_generator
+from stochastax.vector_field_lifts.lie_lift import form_lyndon_brackets
+from stochastax.integrators.log_ode import log_ode
 
 
 def _so3_generators() -> jax.Array:

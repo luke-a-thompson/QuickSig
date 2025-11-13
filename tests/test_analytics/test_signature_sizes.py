@@ -1,5 +1,5 @@
 import pytest
-from quicksig.analytics.signature_sizes import (
+from stochastax.analytics.signature_sizes import (
     get_signature_dim,
     get_log_signature_dim,
     get_bck_signature_dim,
@@ -64,7 +64,7 @@ def test_get_bck_signature_dim_flatten(depth: int, dim: int, expected_sum: int) 
     "depth, dim, expected_sum",
     [
         # MKW per-level count = Catalan(k-1) * dim^k (plane trees with k nodes)
-        (5, 1, 23),   # 1+1+2+5+14
+        (5, 1, 23),  # 1+1+2+5+14
         (4, 3, 471),  # 3 + 9 + 54 + 405
     ],
 )

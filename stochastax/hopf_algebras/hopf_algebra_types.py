@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import jax
 import jax.numpy as jnp
-from quicksig.tensor_ops import cauchy_convolution
+from stochastax.tensor_ops import cauchy_convolution
 
 
 class HopfAlgebra(ABC):
@@ -193,7 +193,7 @@ class GLHopfAlgebra(HopfAlgebra):
         # Per-level dimension: number of unordered rooted forests with n nodes times d^n,
         # where n = level + 1 and #forests(n) = A000081(n+1).
         n = level + 1
-        from quicksig.analytics.signature_sizes import _a000081_upto
+        from stochastax.analytics.signature_sizes import _a000081_upto
 
         counts = _a000081_upto(n + 1)  # counts[k] = A000081(k+1) for k=0..n
         num_forests_n = counts[n]  # A000081(n+1)
@@ -314,7 +314,8 @@ class MKWHopfAlgebra(HopfAlgebra):
         # Per-level dimension: number of plane rooted forests with n nodes times d^n,
         # where n = level + 1 and #plane_forests(n) = Catalan(n).
         n = level + 1
-        from quicksig.analytics.signature_sizes import _catalan
+        from stochastax.analytics.signature_sizes import _catalan
+
         # Number of plane rooted trees with n nodes is Catalan(n-1)
         return _catalan(n - 1) * (self.ambient_dimension**n)
 

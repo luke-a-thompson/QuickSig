@@ -1,11 +1,11 @@
 from functools import partial
 import jax
-from quicksig.control_lifts.path_signature import compute_path_signature
+from stochastax.control_lifts.path_signature import compute_path_signature
 from typing import Literal, overload
 from collections import defaultdict
 import jax.numpy as jnp
-from quicksig.hopf_algebras.elements import LieElement
-from quicksig.control_lifts.signature_types import Signature, LogSignature
+from stochastax.hopf_algebras.elements import LieElement
+from stochastax.control_lifts.signature_types import Signature, LogSignature
 
 
 @overload

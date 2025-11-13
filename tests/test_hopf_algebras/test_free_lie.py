@@ -11,10 +11,10 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from quicksig.hopf_algebras.free_lie import (
+from stochastax.hopf_algebras.free_lie import (
     commutator,
 )
-from quicksig.integrators.series import form_lie_series
+from stochastax.integrators.series import form_lie_series
 
 
 def test_commutator_basic() -> None:

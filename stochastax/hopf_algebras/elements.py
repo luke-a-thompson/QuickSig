@@ -5,10 +5,10 @@ from typing import final, override, TypeVar, overload, TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from quicksig.hopf_algebras.hopf_algebra_types import HopfAlgebra
+from stochastax.hopf_algebras.hopf_algebra_types import HopfAlgebra
 
 if TYPE_CHECKING:
-    from quicksig.control_lifts.signature_types import (
+    from stochastax.control_lifts.signature_types import (
         Signature,
         LogSignature,
         BCKSignature,

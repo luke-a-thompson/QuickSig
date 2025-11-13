@@ -1,5 +1,5 @@
 import pytest
-from quicksig.analytics.metrics_and_norms import (
+from stochastax.analytics.metrics_and_norms import (
     hurst_to_holder_a,
     hurst_to_minimal_signature_depth,
 )

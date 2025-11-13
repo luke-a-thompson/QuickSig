@@ -2,8 +2,8 @@ import jax
 import jax.numpy as jnp
 from typing import Callable, Optional
 
-from quicksig.hopf_algebras.hopf_algebra_types import MKWForest, BCKForest
-from quicksig.vector_field_lifts.vector_field_lift_types import (
+from stochastax.hopf_algebras.hopf_algebra_types import MKWForest, BCKForest
+from stochastax.vector_field_lifts.vector_field_lift_types import (
     ButcherDifferentials,
     LieButcherDifferentials,
 )

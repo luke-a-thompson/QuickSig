@@ -5,15 +5,15 @@ from typing import Any
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 from typing import Callable
 
-from quicksig.controls.drivers import bm_driver
-from quicksig.controls.augmentations import non_overlapping_windower
-from quicksig.controls.paths_types import Path
-from quicksig.hopf_algebras import enumerate_mkw_trees
-from quicksig.hopf_algebras.hopf_algebra_types import MKWHopfAlgebra
-from quicksig.hopf_algebras.elements import GroupElement
-from quicksig.control_lifts.branched_signature_ito import compute_planar_branched_signature
-from quicksig.integrators.log_ode import log_ode
-from quicksig.vector_field_lifts.mkw_lift import compute_mkw_brackets_by_degree
+from stochastax.controls.drivers import bm_driver
+from stochastax.controls.augmentations import non_overlapping_windower
+from stochastax.controls.paths_types import Path
+from stochastax.hopf_algebras import enumerate_mkw_trees
+from stochastax.hopf_algebras.hopf_algebra_types import MKWHopfAlgebra
+from stochastax.hopf_algebras.elements import GroupElement
+from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
+from stochastax.integrators.log_ode import log_ode
+from stochastax.vector_field_lifts.mkw_lift import compute_mkw_brackets_by_degree
 
 
 def _so3_generators() -> jax.Array:

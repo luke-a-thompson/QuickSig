@@ -3,11 +3,11 @@ import jax.numpy as jnp
 import pytest
 from jax.scipy.linalg import expm as jexpm
 
-from quicksig.integrators.log_ode import log_ode
-from quicksig.control_lifts.log_signature import duval_generator
-from quicksig.control_lifts.log_signature import compute_log_signature
-from quicksig.vector_field_lifts.lie_lift import form_lyndon_brackets
-from quicksig.vector_field_lifts.vector_field_lift_types import LyndonBrackets
+from stochastax.integrators.log_ode import log_ode
+from stochastax.control_lifts.log_signature import duval_generator
+from stochastax.control_lifts.log_signature import compute_log_signature
+from stochastax.vector_field_lifts.lie_lift import form_lyndon_brackets
+from stochastax.vector_field_lifts.vector_field_lift_types import LyndonBrackets
 import jax.random as jrandom
 
 

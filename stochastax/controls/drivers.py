@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from quicksig.controls.paths_types import Path
+from stochastax.controls.paths_types import Path
 
 
 def bm_driver(key: jax.Array, timesteps: int, dim: int) -> Path:
@@ -166,6 +166,3 @@ def riemann_liouville_driver(
     Y_tail = sqrt2H * (I + Y2)
     Y_path = jnp.concatenate([jnp.zeros((1, dim), Y_tail.dtype), Y_tail], axis=0)
     return Path(Y_path, bm_path.interval)
-
-
-

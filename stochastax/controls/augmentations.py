@@ -2,7 +2,7 @@ import functools
 import jax.numpy as jnp
 from typing import Callable
 
-from quicksig.controls.paths_types import Path
+from stochastax.controls.paths_types import Path
 
 
 def _get_underlying_function(func: Callable) -> Callable:

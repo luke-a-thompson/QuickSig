@@ -2,8 +2,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from quicksig.hopf_algebras.free_lie import commutator
-from quicksig.vector_field_lifts import form_lyndon_brackets
+from stochastax.hopf_algebras.free_lie import commutator
+from stochastax.vector_field_lifts import form_lyndon_brackets
 
 
 def test_form_lyndon_brackets_single_letter() -> None:
@@ -188,7 +188,7 @@ def test_form_lyndon_brackets_gradients() -> None:
 
 def test_form_lyndon_brackets_consistency_with_duval() -> None:
     """Test that Lyndon brackets are consistent with duval_generator output."""
-    from quicksig.control_lifts.log_signature import duval_generator
+    from stochastax.control_lifts.log_signature import duval_generator
 
     dim, n = 2, 3
     A = jax.random.normal(jax.random.PRNGKey(29), (dim, n, n))

@@ -5,7 +5,7 @@ from typing import Optional
 import jax
 import jax.numpy as jnp
 
-from quicksig.hopf_algebras.hopf_algebra_types import (
+from stochastax.hopf_algebras.hopf_algebra_types import (
     HopfAlgebra,
     BCKForest,
     MKWForest,
@@ -154,9 +154,9 @@ if __name__ == "__main__":
     # Minimal example: compare standard tensor signature with branched Itô signature (m=2).
     import jax.numpy as jnp
     from typing import cast
-    from quicksig.hopf_algebras import enumerate_bck_trees, enumerate_mkw_trees
-    from quicksig.control_lifts.path_signature import compute_path_signature
-    from quicksig.hopf_algebras.hopf_algebra_types import GLHopfAlgebra
+    from stochastax.hopf_algebras import enumerate_bck_trees, enumerate_mkw_trees
+    from stochastax.control_lifts.path_signature import compute_path_signature
+    from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra
 
     # Build a simple 2D path
     path = jnp.array(
