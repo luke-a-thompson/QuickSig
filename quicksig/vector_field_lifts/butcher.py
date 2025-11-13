@@ -24,7 +24,7 @@ def _build_children_from_parent(parent_row: list[int]) -> list[list[int]]:
     return children
 
 
-def build_tree_elementary_differentials_from_fx(
+def _build_tree_elementary_differentials_from_fx(
     fx: jax.Array,
     forest: MKWForest | BCKForest,
     apply_dfk: Optional[Callable[[list[jax.Array]], jax.Array]] = None,
@@ -105,7 +105,7 @@ def form_butcher_differentials(
             h = h_next
         return h(x)
 
-    elementary_differentials = build_tree_elementary_differentials_from_fx(fx, forest, apply_dfk)
+    elementary_differentials = _build_tree_elementary_differentials_from_fx(fx, forest, apply_dfk)
     return ButcherDifferentials(elementary_differentials)
 
 
@@ -137,7 +137,7 @@ def form_lie_butcher_differentials(
             h = h_next
         return h(x)
 
-    elementary_differentials = build_tree_elementary_differentials_from_fx(
+    elementary_differentials = _build_tree_elementary_differentials_from_fx(
         fx_tan, forest, apply_dfk
     )
     return LieButcherDifferentials(elementary_differentials)
