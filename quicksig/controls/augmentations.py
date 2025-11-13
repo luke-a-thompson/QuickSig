@@ -5,43 +5,79 @@ from typing import Callable
 from quicksig.controls.paths_types import Path
 
 
+def _get_underlying_function(func: Callable) -> Callable:
+    """Extract the underlying function from a partial or regular function."""
+    return func.func if isinstance(func, functools.partial) else func
+
+
 def augment_path(
     path: Path,
     augmentations: list[Callable[[Path], Path]],
-) -> Path:
-    """Augment the path with a list of augmentations."""
-    path_augmentations = []
-    sliding_windower_aug = None
-    dyadic_windower_aug = None
+) -> Path | list[Path] | list[list[Path]] | list[list[list[Path]]]:
+    """Augment the path with a list of augmentations.
+
+    Augmentations are applied in order:
+    1. Path transformations (basepoint, time, lead-lag) are applied sequentially
+    2. Windowing operations (non-overlapping or dyadic) are applied last
+
+    If both windowers are provided, non-overlapping windower is applied first,
+    then dyadic windower is applied to each resulting window.
+
+    Args:
+        path: The path to augment
+        augmentations: List of augmentation functions (may be partial functions)
+
+    Returns:
+        - Path: If no windowing augmentations are applied
+        - list[Path]: If only non_overlapping_windower is applied
+        - list[list[Path]]: If only dyadic_windower is applied
+        - list[list[list[Path]]]: If both windowers are applied (non_overlapping then dyadic)
+
+    Raises:
+        ValueError: If an unknown augmentation function is provided
+    """
+    # Known path transformation augmentations
+    PATH_AUGMENTATIONS = {
+        basepoint_augmentation,
+        time_augmentation,
+        lead_lag_augmentation,
+    }
+
+    # Classify augmentations into path transformations and windowers
+    path_transforms: list[Callable[[Path], Path]] = []
+    non_overlapping_windower_aug: Callable[[Path], list[Path]] | None = None
+    dyadic_windower_aug: Callable[[Path], list[list[Path]]] | None = None
 
     for aug in augmentations:
-        func_to_check = aug.func if isinstance(aug, functools.partial) else aug
-        if func_to_check is non_overlapping_windower:
-            sliding_windower_aug = aug
-        elif func_to_check is dyadic_windower:
-            dyadic_windower_aug = aug
-        elif func_to_check in [
-            basepoint_augmentation,
-            time_augmentation,
-            lead_lag_augmentation,
-        ]:
-            path_augmentations.append(aug)
+        underlying_func = _get_underlying_function(aug)
+
+        if underlying_func is non_overlapping_windower:
+            non_overlapping_windower_aug = aug  # type: ignore
+        elif underlying_func is dyadic_windower:
+            dyadic_windower_aug = aug  # type: ignore
+        elif underlying_func in PATH_AUGMENTATIONS:
+            path_transforms.append(aug)
         else:
-            raise ValueError(f"Unknown augmentation: {func_to_check}")
+            raise ValueError(f"Unknown augmentation: {underlying_func}")
 
-    current_path = path
-    for aug in path_augmentations:
-        current_path = aug(current_path)
+    # Apply path transformations sequentially
+    augmented_path = path
+    for transform in path_transforms:
+        augmented_path = transform(augmented_path)
 
-    if sliding_windower_aug and dyadic_windower_aug:
-        sliding_windows = sliding_windower_aug(current_path)
-        return [dyadic_windower_aug(window) for window in sliding_windows]
-    elif sliding_windower_aug:
-        return sliding_windower_aug(current_path)
-    elif dyadic_windower_aug:
-        return dyadic_windower_aug(current_path)
+    # Apply windowing operations (at most one of each type)
+    if non_overlapping_windower_aug is not None and dyadic_windower_aug is not None:
+        # Apply non-overlapping windower first, then dyadic to each window
+        windows = non_overlapping_windower_aug(augmented_path)
+        return [dyadic_windower_aug(window) for window in windows]
 
-    return current_path
+    if non_overlapping_windower_aug is not None:
+        return non_overlapping_windower_aug(augmented_path)
+
+    if dyadic_windower_aug is not None:
+        return dyadic_windower_aug(augmented_path)
+
+    return augmented_path
 
 
 def basepoint_augmentation(path: Path) -> Path:
@@ -120,6 +156,3 @@ def lead_lag_augmentation(leading_path: Path, lagging_path: Path) -> Path:
         path=lead_lag_path_array,
         interval=leading_path.interval,
     )
-
-
-
