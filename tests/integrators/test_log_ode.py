@@ -7,6 +7,7 @@ from quicksig.integrators.log_ode import log_ode
 from quicksig.control_lifts.log_signature import duval_generator
 from quicksig.control_lifts.log_signature import compute_log_signature
 from quicksig.vector_field_lifts.lie_lift import form_lyndon_brackets
+from quicksig.vector_field_lifts.vector_field_lift_types import LyndonBrackets
 import jax.random as jrandom
 
 
@@ -23,18 +24,13 @@ def test_logode_zero_control_identity() -> None:
     depth: int = 2
     dim: int = A.shape[0]
     words_by_len: list[jax.Array] = duval_generator(depth, dim)
-    bracket_basis: jax.Array = form_lyndon_brackets(A, depth)  # [L, 3, 3]
-
-    # Zero coefficients per level matching words_by_len
-    lie_coefficients_by_len: list[jax.Array] = [
-        jnp.zeros((w.shape[0],), dtype=jnp.float32)
-        if w.size != 0
-        else jnp.zeros((0,), dtype=jnp.float32)
-        for w in words_by_len
-    ]
+    bracket_basis: LyndonBrackets = form_lyndon_brackets(A, depth)
 
     y0: jax.Array = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
-    y_next: jax.Array = log_ode(bracket_basis, lie_coefficients_by_len, words_by_len, y0)
+    # Build a constant path (zero increments) and compute its log-signature
+    zero_path = jnp.zeros((2, dim), dtype=jnp.float32)  # shape (N+1, dim)
+    primitive = compute_log_signature(zero_path, depth, "Lyndon words", mode="full")
+    y_next: jax.Array = log_ode(bracket_basis, primitive, words_by_len, y0)
 
     # y0 already unit norm; expect exact equality within tolerance
     assert jnp.allclose(y_next, y0, rtol=1e-7)
@@ -51,10 +47,12 @@ def test_logode_linear_1d_matches_matrix_exponential() -> None:
     bracket_basis = form_lyndon_brackets(A, depth)  # [1, 2, 2] == A0
 
     delta: float = 0.3
-    lie_coefficients_by_len: list[jax.Array] = [jnp.array([delta])]
+    # Build a 2-point path with increment delta
+    seg_W = jnp.array([[0.0], [delta]], dtype=jnp.float32)
 
     y0: jax.Array = jnp.array([1.0, 0.0], dtype=jnp.float32)
-    y_logode: jax.Array = log_ode(bracket_basis, lie_coefficients_by_len, words_by_len, y0)
+    primitive = compute_log_signature(seg_W, depth, "Lyndon words", mode="full")
+    y_logode: jax.Array = log_ode(bracket_basis, primitive, words_by_len, y0)
 
     expected: jax.Array = jexpm(delta * A0) @ y0
     expected = expected / jnp.linalg.norm(expected)
@@ -76,7 +74,7 @@ def test_spherical_brownian_properties_combined() -> None:
     depth: int = 1
     dim: int = A.shape[0]
     words_by_len: list[jax.Array] = duval_generator(depth, dim)
-    bracket_basis: jax.Array = form_lyndon_brackets(A, depth)  # [2, 3, 3] == A
+    bracket_basis: LyndonBrackets = form_lyndon_brackets(A, depth)
     y0: jax.Array = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
 
     # JIT step integrator across a path of increments at depth=1
@@ -85,7 +83,9 @@ def test_spherical_brownian_properties_combined() -> None:
         def step(carry: jax.Array, inc: jax.Array) -> tuple[jax.Array, jax.Array]:
             y_curr = carry
             # depth=1 => coefficients list is [inc]
-            y_next = log_ode(bracket_basis, [inc], words_by_len, y_curr)
+            seg_W = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
+            primitive = compute_log_signature(seg_W, depth, "Lyndon words", mode="full")
+            y_next = log_ode(bracket_basis, primitive, words_by_len, y_curr)
             return y_next, y_next
 
         y_T, ys = jax.lax.scan(step, y_init, increments)
@@ -166,13 +166,13 @@ def test_logode_brownian_segmentation_invariance(brownian_path_fixture: jax.Arra
     A0 = jnp.array([[0.0, -1.0], [1.0, 0.0]], dtype=jnp.float32)
     A: jax.Array = A0[jnp.newaxis, ...]  # [1, 2, 2]
     words_by_len: list[jax.Array] = duval_generator(depth, dim)
-    bracket_basis: jax.Array = form_lyndon_brackets(A, depth)
+    bracket_basis: LyndonBrackets = form_lyndon_brackets(A, depth)
 
     y0: jax.Array = jnp.array([1.0, 0.0], dtype=jnp.float32)
 
     # Whole interval
     log_sig_full = compute_log_signature(W, depth, "Lyndon words", mode="full")
-    y_full: jax.Array = log_ode(bracket_basis, log_sig_full.coeffs, words_by_len, y0)
+    y_full: jax.Array = log_ode(bracket_basis, log_sig_full, words_by_len, y0)
 
     # Windowed
     window: int = 10
@@ -182,7 +182,7 @@ def test_logode_brownian_segmentation_invariance(brownian_path_fixture: jax.Arra
         e = min(s + window, N)
         seg: jax.Array = W[s : e + 1, :]
         log_sig_seg = compute_log_signature(seg, depth, "Lyndon words", mode="full")
-        y_win = log_ode(bracket_basis, log_sig_seg.coeffs, words_by_len, y_win)
+        y_win = log_ode(bracket_basis, log_sig_seg, words_by_len, y_win)
 
     assert jnp.allclose(y_full, y_win, rtol=1e-5)
 
@@ -211,14 +211,14 @@ def test_logode_brownian_segmentation_invariance_commuting_high_depth(
     A: jax.Array = jnp.stack([A1, A2, A3], axis=0)  # [3, 6, 6]
 
     words_by_len: list[jax.Array] = duval_generator(depth, dim)
-    bracket_basis: jax.Array = form_lyndon_brackets(A, depth)
+    bracket_basis: LyndonBrackets = form_lyndon_brackets(A, depth)
 
     y0: jax.Array = jnp.array([1.0, 0.0, 1.0, 0.0, 1.0, 0.0], dtype=jnp.float32)
     y0 = y0 / jnp.linalg.norm(y0)
 
     # Whole interval
     log_sig_full = compute_log_signature(W, depth, "Lyndon words", mode="full")
-    y_full: jax.Array = log_ode(bracket_basis, log_sig_full.coeffs, words_by_len, y0)
+    y_full: jax.Array = log_ode(bracket_basis, log_sig_full, words_by_len, y0)
 
     # Windowed
     window: int = 25
@@ -228,6 +228,6 @@ def test_logode_brownian_segmentation_invariance_commuting_high_depth(
         e = min(s + window, N)
         seg: jax.Array = W[s : e + 1, :]
         log_sig_seg = compute_log_signature(seg, depth, "Lyndon words", mode="full")
-        y_win = log_ode(bracket_basis, log_sig_seg.coeffs, words_by_len, y_win)
+        y_win = log_ode(bracket_basis, log_sig_seg, words_by_len, y_win)
 
     assert jnp.allclose(y_full, y_win, rtol=1e-5)
