@@ -40,8 +40,8 @@ def _dyck_to_parent_preorder(dyck: list[int]) -> jnp.ndarray:
     return jnp.asarray(parent_py, dtype=jnp.int32)
 
 
-def enumerate_mkw_trees(n: int) -> MKWForest:
-    """Enumerate rooted ordered (plane) trees with ``n`` nodes.
+def _enumerate_mkw_trees_n(n: int) -> MKWForest:
+    """Enumerate rooted ordered (plane) trees with exactly ``n`` nodes.
 
     Args:
         n: Number of nodes per tree. Must satisfy ``n >= 1``.
@@ -80,3 +80,13 @@ def enumerate_mkw_trees(n: int) -> MKWForest:
     backtrack(0, 0, [])
     parents = jnp.stack(results_py, axis=0).astype(jnp.int32)
     return MKWForest(Forest(parent=parents))
+
+
+def enumerate_mkw_trees(max_n: int) -> list[MKWForest]:
+    """Enumerate ordered (plane) rooted trees for all degrees 1..``max_n``.
+
+    Returns a list where entry at index n-1 is the ``MKWForest`` for degree n.
+    """
+    if max_n <= 0:
+        raise ValueError("max_n must be >= 1")
+    return [_enumerate_mkw_trees_n(n) for n in range(1, max_n + 1)]
