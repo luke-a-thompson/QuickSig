@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import final, override, TypeVar
+from typing import final, override, TypeVar, overload, TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
 from quicksig.hopf_algebras.hopf_algebra_types import HopfAlgebra
+
+if TYPE_CHECKING:
+    from quicksig.control_lifts.signature_types import (
+        Signature,
+        LogSignature,
+        BCKSignature,
+        BCKLogSignature,
+        MKWSignature,
+        MKWLogSignature,
+    )
 
 TGroup = TypeVar("TGroup", bound="GroupElement")
 
@@ -57,6 +67,14 @@ class GroupElement:
         (coeffs,) = children
         return cls(hopf=hopf, coeffs=coeffs, interval=interval)
 
+    @overload
+    def log(self: Signature) -> LogSignature: ...
+    @overload
+    def log(self: BCKSignature) -> BCKLogSignature: ...
+    @overload
+    def log(self: MKWSignature) -> MKWLogSignature: ...
+    @overload
+    def log(self: GroupElement) -> LieElement: ...
     def log(self) -> LieElement:
         coeffs = self.hopf.log(self.coeffs)
         return LieElement(self.hopf, coeffs, self.interval)
@@ -94,6 +112,14 @@ class LieElement:
     coeffs: list[jax.Array]
     interval: tuple[float, float]
 
+    @overload
+    def exp(self: LogSignature) -> Signature: ...
+    @overload
+    def exp(self: BCKLogSignature) -> BCKSignature: ...
+    @overload
+    def exp(self: MKWLogSignature) -> MKWSignature: ...
+    @overload
+    def exp(self: LieElement) -> GroupElement: ...
     def exp(self) -> GroupElement:
         coeffs = self.hopf.exp(self.coeffs)
         return GroupElement(self.hopf, coeffs, self.interval)
