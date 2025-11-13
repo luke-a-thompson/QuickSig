@@ -13,7 +13,8 @@ def form_lyndon_brackets(
     depth: int,
 ) -> LyndonBrackets:
     """
-    Form Lyndon brackets (commutators) for all Lyndon words up to given depth.
+    Form Lyndon brackets (commutators) for all Lyndon words up to given depth,
+    returned per-level to mirror signature inputs.
 
     Uses the standard factorization: for a Lyndon word w = uv where v is the
     longest proper Lyndon suffix, [w] = [[u], [v]].
@@ -23,8 +24,9 @@ def form_lyndon_brackets(
         depth: Maximum depth (word length) to compute brackets for.
 
     Returns:
-        W: [L, n, n] stacked Lyndon bracket matrices for all words in order.
-           L = total number of Lyndon words up to depth.
+        A list of length `depth`. Entry k contains the bracket matrices for
+        Lyndon words of length k+1 with shape [Nk, n, n]. Empty levels yield
+        a [0, n, n] array.
     """
     dim = A.shape[0]
 
@@ -33,13 +35,14 @@ def form_lyndon_brackets(
 
     if not words_by_len:
         n = A.shape[-1]
-        return LyndonBrackets(jnp.zeros((0, n, n), dtype=A.dtype))
+        return LyndonBrackets([jnp.zeros((0, n, n), dtype=A.dtype) for _ in range(depth)])
 
     n = A.shape[-1]
-    all_brackets: list[LyndonBrackets] = []
+    all_brackets: list[jax.Array] = []
 
     for word_len_idx, words in enumerate(words_by_len):
         if words.size == 0:
+            all_brackets.append(jnp.zeros((0, n, n), dtype=A.dtype))
             continue
 
         word_length = word_len_idx + 1  # words at index k have length k+1
@@ -57,7 +60,4 @@ def form_lyndon_brackets(
 
         all_brackets.append(level_brackets)
 
-    if not all_brackets:
-        return LyndonBrackets(jnp.zeros((0, n, n), dtype=A.dtype))
-
-    return LyndonBrackets(jnp.concatenate(all_brackets, axis=0))  # [L, n, n]
+    return LyndonBrackets(all_brackets)
