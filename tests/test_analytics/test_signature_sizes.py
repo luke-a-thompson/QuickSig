@@ -63,8 +63,9 @@ def test_get_bck_signature_dim_flatten(depth: int, dim: int, expected_sum: int) 
 @pytest.mark.parametrize(
     "depth, dim, expected_sum",
     [
-        (5, 1, 64),  # 1+2+5+14+42
-        (4, 3, 1290),  # 3+18+135+1134
+        # MKW per-level count = Catalan(k-1) * dim^k (plane trees with k nodes)
+        (5, 1, 23),   # 1+1+2+5+14
+        (4, 3, 471),  # 3 + 9 + 54 + 405
     ],
 )
 def test_get_mkw_signature_dim_flatten(depth: int, dim: int, expected_sum: int) -> None:

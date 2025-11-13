@@ -114,31 +114,27 @@ def _a000081_upto(max_n: int) -> list[int]:
 def get_mkw_signature_dim(depth: int, dim: int) -> int:
     """Total dimension of MKW (planar branched) signature coordinates up to depth.
 
-    At level k (degree k), the number of basis elements equals:
-        (# plane forests with k nodes) * dim^k
-    There is a bijection between plane forests with k nodes and plane trees with k+1 nodes,
-    hence the count equals Catalan(k) * dim^k.
+    Implementation basis uses plane trees with exactly k nodes at degree k.
+    Count per level k is Catalan(k-1) * dim^k (dim-coloured).
     """
     levels: list[int] = []
     for k in range(1, depth + 1):
-        levels.append(_catalan(k) * (dim**k))
+        levels.append(_catalan(k - 1) * (dim**k))
     return sum(levels)
 
 
 def get_bck_signature_dim(depth: int, dim: int) -> int:
     """Total dimension of BCK (unordered branched) signature coordinates up to depth.
 
-    At level k (degree k), the number of basis elements equals:
-        (# unordered rooted forests with k nodes) * dim^k
-    There is a bijection between unordered rooted forests with k nodes and unordered rooted
-    trees with k+1 nodes (add a super-root). Denote A000081(n) the number of rooted trees
-    with n nodes. Then level-k count = A000081(k+1) * dim^k.
+    Implementation (GLHopfAlgebra) uses unordered rooted forests with k nodes at degree k,
+    which is in bijection with unordered rooted trees with k+1 nodes (add a super-root).
+    Count per level k is A000081(k+1) * dim^k (dim-coloured).
     """
-    # Use the standard recurrence for A000081 rather than explicit enumeration.
+    # Use the standard recurrence for A000081, requesting counts up to k+1.
     if depth <= 0:
         return 0
     counts: list[int] = _a000081_upto(depth + 1)  # counts[k] = A000081(k+1)
     levels: list[int] = []
     for k in range(1, depth + 1):
-        levels.append(counts[k] * (dim**k))
+        levels.append(counts[k] * (dim**k))  # A000081(k+1)
     return sum(levels)
