@@ -4,8 +4,8 @@ from quicksig.control_lifts.path_signature import compute_path_signature
 from typing import Literal, overload
 from collections import defaultdict
 import jax.numpy as jnp
-from quicksig.hopf_algebras.elements import GroupElement, LieElement
-from quicksig.control_lifts.signature_types import LogSignature
+from quicksig.hopf_algebras.elements import LieElement
+from quicksig.control_lifts.signature_types import Signature, LogSignature
 
 
 @overload
@@ -36,7 +36,7 @@ def compute_log_signature(
     n_features = path.shape[-1]
     signature_result = compute_path_signature(path, depth, mode=mode)
 
-    def _group_to_lie(group_el: GroupElement) -> LieElement:
+    def _group_to_lie(group_el: Signature) -> LogSignature:
         lie_el = group_el.log()
         if log_signature_type == "Tensor words":
             return lie_el
