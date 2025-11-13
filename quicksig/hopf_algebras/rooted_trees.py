@@ -170,10 +170,3 @@ def print_forest(batch: Forest, show_node_ids: bool = True) -> str:
         drawings.append("\n".join(tree_lines))
     body = "\n\n".join(drawings)
     return f"```\n{body}\n```"
-
-
-if __name__ == "__main__":
-    from quicksig.hopf_algebras import enumerate_mkw_trees
-
-    batch_bck = enumerate_mkw_trees(5)
-    print(print_forest(batch_bck))
