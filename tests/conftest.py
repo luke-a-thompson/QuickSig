@@ -2,6 +2,9 @@ import jax
 import jax.numpy as jnp
 from jax import lax
 import pytest
+from typing import Callable
+
+from stochastax.hopf_algebras.hopf_algebra_types import Forest
 
 _test_key = jax.random.PRNGKey(42)
 
@@ -118,3 +121,61 @@ def generate_brownian_path(
     W0 = jnp.zeros((1, dim), dtype=dtype)
     W = jnp.vstack([W0, jnp.cumsum(dW, axis=0)])
     return W
+
+
+def forest_from_parents(parents: list[list[int]]) -> Forest:
+    """Create a Forest from a list of parent arrays (one per tree)."""
+    arr = jnp.asarray(parents, dtype=jnp.int32)
+    return Forest(parent=arr)
+
+
+def chain_parent(n_nodes: int) -> list[int]:
+    """Return parent array for a preorder linear chain of length n_nodes."""
+    if n_nodes < 1:
+        raise ValueError("n_nodes must be >= 1")
+    return [-1] + list(range(0, n_nodes - 1))
+
+
+def binary_root_parent() -> list[int]:
+    """Return parent array for a 3-node tree with two children at the root."""
+    return [-1, 0, 0]
+
+
+def power_matrix(A: jax.Array, k: int) -> jax.Array:
+    """Compute A^k for square matrix A and integer k >= 0."""
+    if k < 0:
+        raise ValueError("k must be >= 0")
+    if k == 0:
+        return jnp.eye(A.shape[0], dtype=A.dtype)
+    acc = A
+    for _ in range(1, k):
+        acc = acc @ A
+    return acc
+
+
+def linear_field(A: jax.Array) -> Callable[[jax.Array], jax.Array]:
+    """Return f(x) = A @ x."""
+
+    def f(x: jax.Array) -> jax.Array:
+        return A @ x
+
+    return f
+
+
+def elementwise_square_field() -> Callable[[jax.Array], jax.Array]:
+    """Return f(x) = x^2 elementwise."""
+
+    def f(x: jax.Array) -> jax.Array:
+        return jnp.square(x)
+
+    return f
+
+
+def identity_projection(y: jax.Array, v: jax.Array) -> jax.Array:
+    """Projection that returns the input vector unchanged."""
+    return v
+
+
+def sphere_tangent_projection(y: jax.Array, v: jax.Array) -> jax.Array:
+    """Project v onto the tangent space at y on the unit sphere: v - (v·y) y."""
+    return v - jnp.dot(v, y) * y

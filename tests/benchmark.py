@@ -4,11 +4,10 @@ import jax.numpy as jnp
 import argparse
 import json
 from pathlib import Path
-from tests.test_helpers import generate_scalar_path
+from tests.conftest import generate_scalar_path
 import jax
 from tqdm import tqdm
 
-import quicksig
 import signax
 
 KEY = jax.random.PRNGKey(42)
@@ -134,10 +133,10 @@ def benchmark_signature(
             path = generate_scalar_path(KEY, num_timesteps, channels)
 
             # QuickSig benchmark
+            from stochastax.control_lifts import compute_path_signature
+
             compiled_quicksig = jax.jit(
-                lambda x: quicksig.signatures.compute_path_signature(
-                    x, depth=depth, mode="full"
-                ).flatten()
+                lambda x: compute_path_signature(x, depth=depth, mode="full").flatten()
             )
             _ = compiled_quicksig(path)
 

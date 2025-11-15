@@ -1,7 +1,7 @@
 [project]
-name = "quicksig"
-version = "0.2.0"
-description = "A fast path signature and log signature computation library using JAX."
+name = "stochastax"
+version = "0.4.0"
+description = "A Jax library for advanced stochastic analysis."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
@@ -11,9 +11,12 @@ maintainers = [
 ]
 keywords = [
     "signatures",
-    "path-signatures",
     "log-signatures",
+    "branched-signatures",
+    "rough-paths",
     "jax",
+    "log-ode",
+    "butcher-series",
     "machine-learning",
     "time-series",
 ]
@@ -32,7 +35,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-dependencies = ["jax>=0.7.0", "diffrax>=0.7.0"]
+dependencies = ["jax>=0.7.0"]
 
 [project.urls]
 "Homepage" = "https://github.com/luke-a-thompson/QuickSig"
@@ -44,30 +47,31 @@ dependencies = ["jax>=0.7.0", "diffrax>=0.7.0"]
 cuda = ["jax[cuda12]>=0.6.0"]
 dev = [
     "ruff>=0.14.3",
+    "mypy",
     "pytest>=8.3.5",
     "pytest-cov>=6.1.1",
     "pytest-timeout>=2.3.1",
     "matplotlib>=3.10.1",
     "signax>=0.2.1",
+    "diffrax>=0.7.0",
     "tqdm>=4.67.1",
     "ipykernel>=6.29.5",
 ]
-all = ["quicksig[cuda,dev]"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["quicksig"]
+packages = ["stochastax"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/quicksig", "/tests", "/README.md", "/LICENSE", "/pyproject.toml"]
+include = ["/stochastax", "/tests", "/README.md", "/LICENSE", "/pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --cov=quicksig --cov-report=term-missing"
+addopts = "-v --cov=stochastax --cov-report=term-missing"
 minversion = "8.0"
 
 [tool.mypy]

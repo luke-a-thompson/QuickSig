@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from quicksig.tensor_ops import (
+from stochastax.tensor_ops import (
     restricted_tensor_exp,
     tensor_log,
     tensor_product,
@@ -320,22 +320,21 @@ def test_batch_cauchy_prod_logic(
     x_terms: list[jax.Array] = _create_terms(x_terms_defs, x_key, B)
     y_terms: list[jax.Array] = _create_terms(y_terms_defs, y_key, B)
 
-    # S_levels_shapes is also a list of batched tensors (shapes)
-    S_levels_shapes: list[jax.Array] = []
-    for i in range(1, depth + 1):
-        s_key, subkey = jax.random.split(s_key)
-        S_levels_shapes.append(
-            jax.random.normal(subkey, (B,) + (n_features,) * i)
-        )  # dummy content, shape is key
+    # Expected shapes derived directly from unflattened levels
+    def _expected_shape_for_level(k_idx: int) -> tuple[int, ...]:
+        # k_idx is 0-based index (order = k_idx + 1)
+        return (B,) + (n_features,) * (k_idx + 1)
 
     # Calculate expected output manually (already batched)
-    expected_out_terms: list[jax.Array] = [jnp.zeros_like(S_levels_shapes[k]) for k in range(depth)]
+    expected_out_terms: list[jax.Array] = [
+        jnp.zeros(_expected_shape_for_level(k)) for k in range(depth)
+    ]
 
     # Loop over output orders (k_out for Z^{(k_out+1)})
     # Z order k_out+1. This means k_out index in expected_out_terms.
     for k_out in range(depth):  # k_out from 0 to depth-1
         target_order_Z = k_out + 1  # order of Z term we are computing
-        current_sum_for_order_Zk = jnp.zeros_like(S_levels_shapes[k_out])
+        current_sum_for_order_Zk = jnp.zeros(_expected_shape_for_level(k_out))
 
         # Sum over X_i Y_j where order(X_i) + order(Y_j) = target_order_Z
         for i_x_term_idx in range(len(x_terms)):
@@ -354,19 +353,17 @@ def test_batch_cauchy_prod_logic(
             expected_out_terms[k_out] = current_sum_for_order_Zk
 
     # cauchy_prod expects lists of unbatched tensors.
-    # vmap handles the batching. in_axes=(0,0,None,0) means:
+    # vmap handles the batching. in_axes=(0,0,None) means:
     #   - x_terms: each tensor in list is unstacked at axis 0
     #   - y_terms: each tensor in list is unstacked at axis 0
     #   - depth: static
-    #   - S_levels_shapes: each tensor in list is unstacked at axis 0
-    result_terms = jax.vmap(cauchy_convolution, in_axes=(0, 0, None, 0))(
-        x_terms, y_terms, depth, S_levels_shapes
-    )
+    result_terms = jax.vmap(cauchy_convolution, in_axes=(0, 0, None))(x_terms, y_terms, depth)
 
     assert len(result_terms) == depth
     for i in range(depth):
-        assert result_terms[i].shape == S_levels_shapes[i].shape, (
-            f"Term {i} shape mismatch. Expected {S_levels_shapes[i].shape}, got {result_terms[i].shape}"
+        expected_shape_i = _expected_shape_for_level(i)
+        assert result_terms[i].shape == expected_shape_i, (
+            f"Term {i} shape mismatch. Expected {expected_shape_i}, got {result_terms[i].shape}"
         )
         # Check if expected_out_terms[i] is non-zero or if result_terms[i] is also zero
         # This handles cases where an order might not be produced (e.g. Z1 for X=(X2), Y=(Y2))

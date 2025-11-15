@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from quicksig.hopf_algebras.mkw_trees import enumerate_mkw_trees
+from stochastax.hopf_algebras.mkw_trees import enumerate_mkw_trees
 
 # OEIS A000108: Catalan numbers; here mapping n -> Catalan(n-1)
 # https://oeis.org/A000108
@@ -36,7 +36,7 @@ def _assert_parent_batch(batch: jnp.ndarray, n: int) -> None:
 
 @pytest.mark.parametrize("n", sorted(A000108))
 def test_ordered_counts_and_conventions_small_n(n: int) -> None:
-    batch = enumerate_mkw_trees(n)
+    batch = enumerate_mkw_trees(n)[n - 1]
     parents = batch.parent
     assert parents.shape[0] == A000108[n], (
         f"For n={n}, expected A000108[n]={A000108[n]} trees, got {parents.shape[0]}"
@@ -47,7 +47,7 @@ def test_ordered_counts_and_conventions_small_n(n: int) -> None:
 
 @pytest.mark.parametrize("n", [1, 2, 3, 4])
 def test_ordered_enumerator_counts(n: int) -> None:
-    batch = enumerate_mkw_trees(n)
+    batch = enumerate_mkw_trees(n)[n - 1]
     parents = batch.parent
     expected = A000108[n]
     assert parents.shape == (expected, n), (
@@ -59,5 +59,5 @@ def test_ordered_enumerator_counts(n: int) -> None:
 @pytest.mark.parametrize("n", [2, 3, 4])
 def test_ordered_is_jittable(n: int) -> None:
     ordered_fn = jax.jit(enumerate_mkw_trees, static_argnums=0)
-    ordered_batch = ordered_fn(n)
+    ordered_batch = ordered_fn(n)[n - 1]
     _assert_parent_batch(ordered_batch.parent, n)

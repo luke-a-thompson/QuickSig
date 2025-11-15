@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 
-from quicksig.hopf_algebras.rooted_trees import Forest, print_forest
+from stochastax.hopf_algebras.rooted_trees import Forest, print_forest
 
 
 def test_render_forest_markdown_minimal_centered() -> None:

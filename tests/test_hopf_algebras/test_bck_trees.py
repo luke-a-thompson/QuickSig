@@ -2,8 +2,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from quicksig.hopf_algebras.bck_trees import enumerate_bck_trees
-from quicksig.hopf_algebras.mkw_trees import enumerate_mkw_trees
+from stochastax.hopf_algebras.bck_trees import enumerate_bck_trees
+from stochastax.hopf_algebras.mkw_trees import enumerate_mkw_trees
 
 
 # OEIS A000081: number of rooted unlabeled trees with n nodes
@@ -60,7 +60,7 @@ def _canonical_code(parent: jnp.ndarray) -> tuple:
 
 @pytest.mark.parametrize("n", sorted(A000081))
 def test_unordered_counts_small_n(n: int) -> None:
-    batch = enumerate_bck_trees(n)
+    batch = enumerate_bck_trees(n)[n - 1]
     parents = batch.parent
     assert parents.shape[0] == A000081[n], (
         f"For n={n}, expected {A000081[n]} unordered trees, got {parents.shape[0]}"
@@ -71,7 +71,7 @@ def test_unordered_counts_small_n(n: int) -> None:
 
 @pytest.mark.parametrize("n", [1, 2, 3, 4])
 def test_unordered_enumerator_counts(n: int) -> None:
-    batch = enumerate_bck_trees(n)
+    batch = enumerate_bck_trees(n)[n - 1]
     parents = batch.parent
     expected = A000081[n]
     assert parents.shape == (expected, n), (
@@ -84,8 +84,8 @@ def test_unordered_enumerator_counts(n: int) -> None:
 
 @pytest.mark.parametrize("n", [1, 2, 3, 4])
 def test_unordered_matches_plane_canonical_codes(n: int) -> None:
-    plane_batch = enumerate_mkw_trees(n)
-    unordered_batch = enumerate_bck_trees(n)
+    plane_batch = enumerate_mkw_trees(n)[n - 1]
+    unordered_batch = enumerate_bck_trees(n)[n - 1]
 
     plane_codes = {_canonical_code(row) for row in plane_batch.parent}
     unordered_codes = {_canonical_code(row) for row in unordered_batch.parent}
@@ -98,5 +98,5 @@ def test_unordered_matches_plane_canonical_codes(n: int) -> None:
 @pytest.mark.parametrize("n", [2, 3, 4])
 def test_unordered_is_jittable(n: int) -> None:
     unordered_fn = jax.jit(enumerate_bck_trees, static_argnums=0)
-    unordered_batch = unordered_fn(n)
+    unordered_batch = unordered_fn(n)[n - 1]
     _assert_parent_batch(unordered_batch.parent, n)

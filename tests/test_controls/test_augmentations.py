@@ -2,7 +2,7 @@ import pytest
 import functools
 import jax
 import jax.numpy as jnp
-from quicksig.controls.augmentations import (
+from stochastax.controls.augmentations import (
     augment_path,
     basepoint_augmentation,
     time_augmentation,
@@ -10,7 +10,7 @@ from quicksig.controls.augmentations import (
     non_overlapping_windower,
     dyadic_windower,
 )
-from quicksig.controls.paths_types import pathify, Path
+from stochastax.controls.paths_types import pathify, Path
 
 _test_key = jax.random.PRNGKey(42)
 
@@ -277,7 +277,13 @@ def test_augment_path_valid_inputs(input_path_array, augmentations, expected_sha
     """Test augment_path with valid inputs."""
     input_path = pathify(input_path_array)
     result = augment_path(input_path, augmentations)
-    assert result.path.shape == expected_shape
+    if isinstance(result, Path):
+        assert result.path.shape == expected_shape
+    else:
+        # For windowing augmentations, check first window
+        assert isinstance(result, list)
+        if len(result) > 0 and isinstance(result[0], Path):
+            assert result[0].path.shape[1] == expected_shape[1]  # Check ambient dimension
 
 
 def test_augment_path_with_non_zero_start_interval():
@@ -288,16 +294,20 @@ def test_augment_path_with_non_zero_start_interval():
 
     # Perform a basepoint augmentation
     result = augment_path(input_path, [basepoint_augmentation])
+    assert isinstance(result, Path)
 
     # The resulting path should have its interval updated to reflect the new length
     # but starting from the original start time.
     assert result.interval == (0, 4), f"Expected interval (0, 4), but got {result.interval}"
 
     # Now, test with a windowing augmentation
-    windows = augment_path(input_path, [functools.partial(non_overlapping_windower, window_size=2)])
+    windows = augment_path(input_path, [functools.partial(non_overlapping_windower, window_size=2)])  # type: ignore[arg-type]
+    assert isinstance(windows, list)
 
     # The sub-paths should have intervals relative to the original path's interval
     assert len(windows) == 2
+    assert isinstance(windows[0], Path)
+    assert isinstance(windows[1], Path)
     assert windows[0].interval == (10, 12), (
         f"Expected interval (10, 12), but got {windows[0].interval}"
     )

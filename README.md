@@ -2,7 +2,7 @@
 
 An extremely fast signature computation library built with JAX for efficient path signature and log signature computations.
 
-[![PyPI version](https://badge.fury.io/py/quicksig.svg)](https://badge.fury.io/py/quicksig)
+[![PyPI version](https://badge.fury.io/py/stochastax.svg)](https://badge.fury.io/py/quicksig)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -33,7 +33,7 @@ uv sync --extra dev
 For development:
 ```bash
 pip install quicksig[all]
-uv sync --extra all
+uv sync --all-extras
 ```
 
 ## Quick Start
@@ -97,7 +97,7 @@ Compute the log signature of a path or batch of paths.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/quicksig.git
+git clone https://github.com/yourusername/stochastax.git
 cd quicksig
 
 # Install development dependencies
