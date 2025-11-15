@@ -1,4 +1,4 @@
-# QuickSig
+# Stochastax
 
 An extremely fast signature computation library built with JAX for efficient path signature and log signature computations.
 
